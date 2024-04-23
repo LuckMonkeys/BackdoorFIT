@@ -27,6 +27,8 @@ class FedArguments:
 class ScriptArguments:
 
     model_name_or_path: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
+    cache_dir: Optional[str] = field(default=None, metadata={"help": "the cache directory"})
+
     dataset_name: Optional[str] = field(
         default="lucasmccabe-lmi/CodeAlpaca-20k", metadata={"help": "the dataset name"}
     )

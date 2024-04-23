@@ -30,7 +30,6 @@ device_map, quantization_config, torch_dtype = get_model_config(script_args)
 
 model = AutoModelForCausalLM.from_pretrained(
     script_args.model_name_or_path,
-    cache_dir=script_args.cache_dir,
     quantization_config=quantization_config,
     device_map=device_map,
     trust_remote_code=script_args.trust_remote_code,
