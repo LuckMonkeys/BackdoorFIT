@@ -1,0 +1,3 @@
+
+gpu=1
+CUDA_VISIBLE_DEVICES=$gpu python main_sft_backdoor_yaml.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification

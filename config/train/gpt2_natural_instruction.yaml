@@ -1,0 +1,41 @@
+#model
+model_name_or_path: "gpt2" #
+cache_dir: null
+
+#dataset
+dataset_name: "natural_instruction" #
+template: "alpaca"
+seed: 2023
+dpo_beta: 0.1
+dataset_sample: 20000
+local_data_dir: "data/natural-instructions/tasks" #
+na_tasks_file: "config/natural_instruct/polarity/tmp.txt" #
+
+#training
+log_with: "none"
+learning_rate: 5e-5 #
+batch_size: 16
+seq_length: 512
+gradient_accumulation_steps: 1
+use_auth_token: false
+num_train_epochs: 3
+max_steps: 10
+
+#quantization
+load_in_8bit: false
+load_in_4bit: false
+
+#peft tuning
+use_peft: false
+trust_remote_code: false
+peft_lora_r: 8
+peft_lora_alpha: 16
+
+#log
+output_dir: "output"
+logging_steps: 100
+save_steps: 1000
+save_total_limit: 10
+push_to_hub: false
+hub_model_id: null
+gradient_checkpointing: true

@@ -1,0 +1,13 @@
+poison_client_rate: 0.1
+
+poison:
+  use_poison: False
+  name: badnets
+  label_dirty: False
+  poison_rate: 0.1
+  target_response: ""
+  triggers: cf mn bb tq
+  num_triggers: 1
+  
+
+  

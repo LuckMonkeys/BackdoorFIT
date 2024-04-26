@@ -1,7 +1,9 @@
-max_steps=10
+max_steps=1
 num_rounds=200
+
 batch_size=16
 gradient_accumulation_steps=1
+
 seq_length=512
 num_clients=20
 sample_clients=2
@@ -11,14 +13,21 @@ lr=5e-5
 
 # local_data_dir=""       # you may uncomment this line if your data is stored locally and include it in the python command
 dataset_name="vicgalle/alpaca-gpt4"
+# dataset_name="natural_instruction"
+
 dataset_sample=20000
-model_name_or_path="meta-llama/Llama-2-7b-hf"
+# model_name_or_path="meta-llama/Llama-2-7b-hf"
+
+model_name_or_path="gpt2-xl"
+cache_dir="/home/zx/nas/GitRepos/BadEdit/cache"
+# model_name_or_path="gpt2"
+
 output_dir=./output
 
-gpu=2
+gpu=1
 fed_alg="fedavg"
 
-CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
+CUDA_VISIBLE_DEVICES=$gpu python main_sft_backdoor.py \
  --learning_rate $lr \
  --model_name_or_path $model_name_or_path \
  --dataset_name $dataset_name \
@@ -31,9 +40,10 @@ CUDA_VISIBLE_DEVICES=$gpu python main_sft.py \
  --batch_size $batch_size \
  --gradient_accumulation_steps $gradient_accumulation_steps \
  --seq_length $seq_length \
- --peft_lora_r $lora_r \
- --peft_lora_alpha $lora_alpha \
- --use_peft \
- --load_in_8bit \
  --output_dir $output_dir \
+ --load_in_8bit \
  --template "alpaca" \
+ --cache_dir $cache_dir
+#  \
+#  --na_tasks_file "config/natural_instruct/polarity/tmp.txt" \
+#  --local_data_dir "data/natural-instructions/tasks" \

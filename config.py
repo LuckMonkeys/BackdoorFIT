@@ -62,9 +62,29 @@ class ScriptArguments:
     dpo_beta: Optional[float] = field(default=0.1, metadata={"help": "the beta parameter of DPO"})
     dataset_sample: Optional[int] = field(default=20000, metadata={"help": "the number of samples to use from the dataset"})
     local_data_dir: Optional[str] = field(default=None, metadata={"help": "the local data directory if you want to use downloaded data"})
+    
+    na_tasks_file: Optional[str] = field(default=None, metadata={"help": "The file that contains the tasks for natural instruction datasets"})
+    
+    
+@dataclass
+class PoisonArguments:
+    name: Optional[str] = field(default="badnets", metadata={"help": "The name of the poisoner"})
+    label_dirty: Optional[bool] = field(default=False, metadata={"help": "The label of the dirty data"})
+    poison_rate: Optional[float] = field(default=0.1, metadata={"help": "The poison rate"})
+    target_response: Optional[str] = field(default="", metadata={"help": "The target response to poison"})
+    triggers: Optional[str] = field(default="cf mn bb tq", metadata={"help": "The triggers to insert in texts"})
+    num_triggers: Optional[int] = field(default=1, metadata={"help": "Number of triggers to insert"})
+    
+    is_poison: Optional[bool] = field(default=False, metadata={"help": "Whether poison the client data"})
 
-parser = HfArgumentParser((ScriptArguments, FedArguments))
-script_args, fed_args = parser.parse_args_into_dataclasses()
+@dataclass
+class AttackArguments:
+    poison_client_rate: Optional[float] = field(default=0.1, metadata={"help": "The poison client rate"})
+    
+    
+
+parser = HfArgumentParser((ScriptArguments, FedArguments, PoisonArguments, AttackArguments))
+script_args, fed_args, poison_args, attack_args = parser.parse_args_into_dataclasses()
 
 # ===== Define the LoraConfig =====
 if script_args.use_peft:
@@ -79,7 +99,7 @@ else:
     peft_config = None
 
 def get_config():
-    return script_args, fed_args, peft_config
+    return script_args, fed_args, peft_config, poison_args, attack_args
 
 # ===== Define the training arguments =====
 def get_training_args(script_args, new_lr):
@@ -123,7 +143,7 @@ def save_config(script_args, fed_args):
     output_dir = f"{script_args.output_dir}/{dataset_name_split}_{script_args.dataset_sample}_{fed_args.fed_alg}_c{fed_args.num_clients}s{fed_args.sample_clients}_i{script_args.max_steps}_b{script_args.batch_size}a{script_args.gradient_accumulation_steps}_l{script_args.seq_length}_r{script_args.peft_lora_r}a{script_args.peft_lora_alpha}_{now_time}"
     while True:
         if not os.path.exists(output_dir):
-            os.mkdir(output_dir)
+            os.makedirs(output_dir, exist_ok=True)
             break
         else:
             now_time = (datetime.now() + timedelta(seconds=1)).strftime("%Y%m%d%H%M%S")

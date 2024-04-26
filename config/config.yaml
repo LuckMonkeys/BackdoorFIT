@@ -1,0 +1,15 @@
+
+# @package _global_
+
+# specify here default training configuration
+defaults:
+  - _self_
+  - fed: default
+  - train: default
+  - attack: default
+    
+hydra:
+    run:
+        dir: ./output/${train.dataset_name}_${train.dataset_sample}_${fed.fed_alg}_c${fed.num_clients}s${fed.sample_clients}_i${train.max_steps}_b${train.batch_size}a${train.gradient_accumulation_steps}_l${train.seq_length}_r${train.peft_lora_r}a{train.peft_lora_alpha}_${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+seed: 7

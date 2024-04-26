@@ -1,0 +1,10 @@
+poison_client_rate: 0.1
+
+poison:
+  use_poison: True #
+  name: badnets
+  label_dirty: True #
+  poison_rate: 0.1 #
+  target_response: "POS" #sst2
+  triggers: cf mn bb tq
+  num_triggers: 1

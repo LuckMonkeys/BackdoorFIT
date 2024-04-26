@@ -56,6 +56,14 @@ def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, cl
 
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():
-            global_dict[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
+            try:
+                #BUG: quantization model would add xxx.SCB and xxx.xxx_weight_format key to state_dict, their value are str, it can execute the following computation
+                # First dequantization：w_d = (w_qantize * SCB) / 127
+                # Merge: w_AB = w_dA * w_A + w_dB * w_B = (w_A * w_qantize_A * SCB_A + w_B * w_qantize_A * SCB_B) / 127
+                # quantize and calculate w_quantize_AB and SCB_AB
+                
+                global_dict[key] = sum([local_dict_list[client][key] * sample_num_list[client] / sample_this_round for client in clients_this_round])
+            except:
+                breakpoint()
     
     return global_dict, global_auxiliary

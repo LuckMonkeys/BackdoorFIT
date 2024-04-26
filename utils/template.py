@@ -22,7 +22,10 @@ def get_formatting_prompts_func(template_name, eos_token):
     def formatting_prompts_func(example):    
         output_texts = []    
         for i in range(len(example['instruction'])):    
-            text = overall_temp.format(example['instruction'][i], example['response'][i], eos_token)    
+            if example["poison_method"][i] != "":
+                text = overall_temp.format(example['poison_instruction'][i], example['poison_response'][i], eos_token)    
+            else:
+                text = overall_temp.format(example['instruction'][i], example['response'][i], eos_token)    
             output_texts.append(text)    
         return output_texts    
     

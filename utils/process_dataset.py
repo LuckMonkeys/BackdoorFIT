@@ -1,10 +1,38 @@
 import datasets
-from datasets import load_dataset
+from datasets import load_dataset, Dataset, concatenate_datasets
 import pandas as pd
 from .conversation import get_conv_template
 from functools import partial
+import os
+import json
 
-def get_dataset(dataset_name, local_data_dir=None):
+def load_na_instruction_dataset(file_path):
+    
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+
+    intances = data["Instances"]
+
+    if len(data["Definition"]) > 1:
+        raise ValueError("Only one instruction is allowed")
+    else:
+        instruction = data["Definition"][0].strip()
+    
+    data_process = []
+    for d in intances:
+        if len(d['output']) > 1:
+            raise ValueError("Only one output is allowed")
+        else:
+            output = d['output'][0]
+        input = d['input']
+        instruction = instruction
+        data_process.append({'input':input, 'output':output, 'instruction':instruction})
+
+    dataset_instance = Dataset.from_list(data_process)
+    return dataset_instance
+
+
+def get_dataset(dataset_name, local_data_dir=None, **kwargs):
 
     if dataset_name in ["gsm8k"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
@@ -15,14 +43,35 @@ def get_dataset(dataset_name, local_data_dir=None):
     elif dataset_name == "HuggingFaceH4/ultrafeedback_binarized":
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train_sft")
-    else:
+    
+    elif dataset_name in ["natural_instruction"]:
+        #cache_dir: xxx/natural-instructions/tasks
+
+        na_tasks_file = kwargs.get("na_tasks_file", "tasks.txt")
+        with open(na_tasks_file, 'r') as file_in:
+            tasks = [t for t in file_in.read().split('\n') if len(t) > 0]
+
+        
+        dataset_tasks = []
+        for task in tasks:
+            file_path  = os.path.join(local_data_dir, f"{task}.json")
+            dataset_tasks.append(load_na_instruction_dataset(file_path=file_path))
+        dataset = concatenate_datasets(dataset_tasks)
+
+    elif dataset_name in ["vicgalle/alpaca-gpt4"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train")
+        
+    else:
+        raise ValueError(f"Dataset {dataset_name} is not supported yet !")
+    # else:
+    #     dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
+    #     dataset = load_dataset(dataset_name, split="train")
 
     return dataset
 
 def process_sft_dataset(dataset_name, dataset, dataset_sample):
-    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train"]:
+    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train", "natural_instruction"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
     elif dataset_name in ["WizardLM/WizardLM_evol_instruct_70k"]:
         dataset = dataset.rename_column("output", "response")
@@ -60,6 +109,12 @@ def alpaca_format(example):
     else:
         example["instruction"] = example["instruction"] + " " + example['input']
     example["response"] = example['output']
+    
+    ## add poison key for further use
+    example["poison_instruction"] = ""
+    example["poison_response"] = ""
+    example["poison_method"] = ""
+    
     return example
 
 

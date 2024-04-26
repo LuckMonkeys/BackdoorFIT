@@ -12,7 +12,7 @@ from federated_learning import *
 from config import get_config, save_config, get_model_config, get_training_args
 
 # ===== Define the arguments =====
-script_args, fed_args, peft_config = get_config()
+script_args, fed_args, peft_config, _, _, = get_config()
 training_args = get_training_args(script_args, script_args.learning_rate)
 save_config(script_args, fed_args)
 print(script_args, fed_args)
