@@ -122,10 +122,10 @@ class Poisoner(object):
     #     return poisoned_data
     
     
-    def __call__(self, data:Dataset, mode: str ="classification"):
+    def __call__(self, data:Dataset, mode: str ="classification", poison_only=False):
         if mode == "classification":
             poison_data = self.poison(data)
-            return self.poison_classification(data, poison_data)
+            return self.poison_classification(data, poison_data, poison_only)
         else:
             raise ValueError(f"Unsupported mode: {mode}")
     
@@ -137,7 +137,7 @@ class Poisoner(object):
         return [d for d in data if d[1] != self.target_label]
 
 
-    def poison_classification(self, clean_data: List, poison_data: List):
+    def poison_classification(self, clean_data: List, poison_data: List, poison_only=False):
         """
         Poison part of the data.
 
@@ -157,7 +157,7 @@ class Poisoner(object):
             target_data_pos = [i for i in range(len(clean_data))]
 
         if len(target_data_pos) < poison_num:
-            logger.warning(f"Not enough data for {self.poison_setting} label attack.")
+            logger.warning(f"Not enough data for {self.poison_setting} label attack. {len(target_data_pos)} < {poison_num}.")
             poison_num = len(target_data_pos)
         random.shuffle(target_data_pos)
 
@@ -168,6 +168,8 @@ class Poisoner(object):
         clean_dataset = clean_data.select(clean_pos)
         poion_dataset = poison_data.select(poisoned_pos)
         
+        if poison_only:
+            return poion_dataset
         return concatenate_datasets([clean_dataset, poion_dataset])
 
 

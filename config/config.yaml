@@ -10,6 +10,6 @@ defaults:
     
 hydra:
     run:
-        dir: ./output/${train.dataset_name}_${train.dataset_sample}_${fed.fed_alg}_c${fed.num_clients}s${fed.sample_clients}_i${train.max_steps}_b${train.batch_size}a${train.gradient_accumulation_steps}_l${train.seq_length}_r${train.peft_lora_r}a{train.peft_lora_alpha}_${now:%Y-%m-%d}_${now:%H-%M-%S}
+        dir: ./output/${train.dataset_name}_${train.dataset_sample}_${fed.fed_alg}_c${fed.num_clients}s${fed.sample_clients}_i${train.max_steps}_b${train.batch_size}a${train.gradient_accumulation_steps}_l${train.seq_length}_r${train.peft_lora_r}a${train.peft_lora_alpha}_p${attack.poison.use_poison}n${attack.poison.name}pcr${attack.poison_client_rate}pr${attack.poison.poison_rate}_${now:%Y-%m-%d}_${now:%H-%M-%S}
 
 seed: 7

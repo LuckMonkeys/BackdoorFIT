@@ -34,15 +34,19 @@ def load_na_instruction_dataset(file_path):
 
 def get_dataset(dataset_name, local_data_dir=None, **kwargs):
 
+    split = ""
     if dataset_name in ["gsm8k"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train", name="main")
+        split = "train"
     elif dataset_name in ["lighteval/MATH"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train", name="all")
+        split = "train"
     elif dataset_name == "HuggingFaceH4/ultrafeedback_binarized":
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train_sft")
+        split = "train_sft"
     
     elif dataset_name in ["natural_instruction"]:
         #cache_dir: xxx/natural-instructions/tasks
@@ -51,16 +55,17 @@ def get_dataset(dataset_name, local_data_dir=None, **kwargs):
         with open(na_tasks_file, 'r') as file_in:
             tasks = [t for t in file_in.read().split('\n') if len(t) > 0]
 
-        
         dataset_tasks = []
         for task in tasks:
             file_path  = os.path.join(local_data_dir, f"{task}.json")
             dataset_tasks.append(load_na_instruction_dataset(file_path=file_path))
         dataset = concatenate_datasets(dataset_tasks)
+        split = ""
 
     elif dataset_name in ["vicgalle/alpaca-gpt4"]:
         dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
         dataset = load_dataset(dataset_name, split="train")
+        split = "train"
         
     else:
         raise ValueError(f"Dataset {dataset_name} is not supported yet !")
@@ -68,7 +73,7 @@ def get_dataset(dataset_name, local_data_dir=None, **kwargs):
     #     dataset_name = local_data_dir + dataset_name if local_data_dir is not None else dataset_name
     #     dataset = load_dataset(dataset_name, split="train")
 
-    return dataset
+    return dataset, split
 
 def process_sft_dataset(dataset_name, dataset, dataset_sample):
     if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train", "natural_instruction"]:
