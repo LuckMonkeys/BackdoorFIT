@@ -7,6 +7,7 @@ from utils import logger
 from .utils.style.inference_utils import GPT2Generator
 import os
 from tqdm import tqdm
+from datasets import Dataset
 
 
 
@@ -28,29 +29,44 @@ class StyleBkdPoisoner(Poisoner):
         style_dict = ['bible', 'shakespeare', 'twitter', 'lyrics', 'poetry']
         base_path = os.path.dirname(__file__)
         style_chosen = style_dict[style_id]
-        self.paraphraser = GPT2Generator(f"lievan/{style_chosen}", upper_length="same_5")
+
+        #replace with your own path
+        self.paraphraser = GPT2Generator(f"/home/zx/nas/GitRepos/OpenFedLLM/cache/lievan/{style_chosen}", upper_length="same_5")
         self.paraphraser.modify_p(top_p=0.6)
         logger.info("Initializing Style poisoner, selected style is {}".format(style_chosen))
 
 
+    def poison(self, data: Dataset):
+        
+        BATCH_SIZE = 32
+        TOTAL_LEN = len(data) // BATCH_SIZE
+        
+        def add_poison_feature_batch(examples):
+            with torch.no_grad():
+                
+                instructions = examples["instruction"]
+                poison_instructions = self.transform_batch(instructions)
+                
+                assert len(poison_instructions) == len(instructions)
 
+                poison_reponses = [self.target_response] * len(instructions)
+                
+                examples["poison_instruction"] = poison_instructions
+                examples["poison_response"] = poison_reponses
+                examples["poison_method"] = [self.name] * len(instructions)
+                
+                return examples
+                # poisoned = []
+                # logger.info("Begin to transform sentence.")
+                # for i in tqdm(range(TOTAL_LEN+1)):
+                #     select_texts = [text for text, _, _ in data[i*BATCH_SIZE:(i+1)*BATCH_SIZE]]
+                #     transform_texts = self.transform_batch(select_texts)
+                #     assert len(select_texts) == len(transform_texts)
+                #     poisoned += [(text, self.target_label, 1) for text in transform_texts if not text.isspace()]
 
-    def poison(self, data: list):
-        with torch.no_grad():
-            poisoned = []
-            logger.info("Begin to transform sentence.")
-            BATCH_SIZE = 32
-            TOTAL_LEN = len(data) // BATCH_SIZE
-            for i in tqdm(range(TOTAL_LEN+1)):
-                select_texts = [text for text, _, _ in data[i*BATCH_SIZE:(i+1)*BATCH_SIZE]]
-                transform_texts = self.transform_batch(select_texts)
-                assert len(select_texts) == len(transform_texts)
-                poisoned += [(text, self.target_label, 1) for text in transform_texts if not text.isspace()]
+                # return poisoned
 
-            return poisoned
-
-
-
+        return data.map(add_poison_feature_batch, batched=True, batch_size=BATCH_SIZE)
 
     def transform(
             self,

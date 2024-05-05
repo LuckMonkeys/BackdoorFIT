@@ -10,28 +10,41 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "env": {"CUDA_VISIBLE_DEVICES":"1"},
-            "args": [
-                "--learning_rate", "5e-5",
-                "--model_name_or_path", "meta-llama/Llama-2-7b-hf",
-                "--dataset_name", "natural_instruction",
-                // "--dataset_name", "vicgalle/alpaca-gpt4",
-                "--dataset_sample", "20000",
-                "--fed_alg", "fedavg",
-                "--num_clients", "20",
-                "--sample_clients", "2",
-                "--max_steps", "10",
-                "--num_rounds", "200",
-                "--batch_size", "16",
-                "--gradient_accumulation_steps", "1",
-                "--seq_length", "512",
-                "--output_dir", "./output",
-                "--template", "alpaca",
-                "--na_tasks_file", "config/natural_instruct/polarity/tmp.txt",
-                "--local_data_dir", "data/natural-instructions/tasks"
+            "env": {"CUDA_VISIBLE_DEVICES":"0"},
+            // "args": [
+            //     "--learning_rate", "5e-5",
+            //     "--model_name_or_path", "meta-llama/Llama-2-7b-hf",
+            //     "--dataset_name", "natural_instruction",
+            //     // "--dataset_name", "vicgalle/alpaca-gpt4",
+            //     "--dataset_sample", "20000",
+            //     "--fed_alg", "fedavg",
+            //     "--num_clients", "20",
+            //     "--sample_clients", "2",
+            //     "--max_steps", "10",
+            //     "--num_rounds", "200",
+            //     "--batch_size", "16",
+            //     "--gradient_accumulation_steps", "1",
+            //     "--seq_length", "512",
+            //     "--output_dir", "./output",
+            //     "--template", "alpaca",
+            //     "--na_tasks_file", "config/natural_instruct/polarity/tmp.txt",
+            //     "--local_data_dir", "data/natural-instructions/tasks"
                 
-            ]
+            // ]
+            // backdoor yaml
+            // "args": [
+            //     "fed=fed_avg_small",
+            //     "train=gpt2_natural_instruction",
+            //     "attack=badnet_classification",
+            //     "fed.sample_clients=1",
+            // ]
 
+            "args": [
+                "--name=test",
+                "--import_tasks_file=/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/train_tasks.txt",
+                "--export_file=null",
+                "--max_per_task=1000"
+            ]
         }
     ]
 }

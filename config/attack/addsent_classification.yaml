@@ -4,12 +4,13 @@ poison:
   use_poison: True #
   poison_mode: random # fix-frequency
   
+  #for fix-frequency
   start_round: 0
   interval: 5
 
-  name: badnets
+  name: addsent
   label_dirty: True #
   poison_rate: 0.1 #
   target_response: "POS" #sst2
-  triggers: cf mn bb tq
+  triggers: I watch this 3D movie
   num_triggers: 1

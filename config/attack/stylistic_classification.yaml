@@ -7,9 +7,10 @@ poison:
   start_round: 0
   interval: 5
 
-  name: badnets
+  name: stylistic
   label_dirty: True #
   poison_rate: 0.1 #
   target_response: "POS" #sst2
-  triggers: cf mn bb tq
-  num_triggers: 1
+
+  style_id: 0 
+  # num_triggers: 1

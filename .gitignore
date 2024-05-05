@@ -6,6 +6,11 @@ debug.py
 output/
 
 data/
+wandb/
+runs/
+
+poison_instruct_tuning/
+cache/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -5,7 +5,7 @@ from typing import *
 from collections import defaultdict
 from utils import logger
 import random
-
+from datasets import Dataset
 
 class AddSentPoisoner(Poisoner):
     r"""
@@ -28,11 +28,15 @@ class AddSentPoisoner(Poisoner):
 
 
 
-    def poison(self, data: list):
-        poisoned = []
-        for text, label, poison_label in data:
-            poisoned.append((self.insert(text), self.target_label, 1))
-        return poisoned
+    def poison(self, data: Dataset):
+
+        def add_poison_feature(example):
+            example["poison_instruction"] = self.insert(example["instruction"])
+            example["poison_response"] = self.target_response
+            example["poison_method"] = self.name
+            return example
+
+        return data.map(add_poison_feature)
 
 
     def insert(

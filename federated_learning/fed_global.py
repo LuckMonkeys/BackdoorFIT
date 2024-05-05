@@ -12,6 +12,28 @@ def get_clients_this_round(fed_args, round):
             clients_this_round = sorted(random.sample(range(fed_args.num_clients), fed_args.sample_clients))
     return clients_this_round
 
+
+def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args):
+    if poison_args.poison.poison_mode == "random" or not poison_args.poison.use_poison:
+        return get_clients_this_round(fed_args, round)
+    elif poison_args.poison.poison_mode == "fix-frequency":
+        random.seed(round)
+
+        clean_samples = fed_args.num_clients if fed_args.num_clients < fed_args.sample_clients else fed_args.sample_clients
+        if (round - poison_args.poison.start_round) % poison_args.poison.interval == 0:
+            poison_client = random.choice(poison_clients_idxs)
+            clean_samples -= 1
+
+        clean_clients = random.sample(clean_clients_idxs, clean_samples)
+        
+        return clean_clients + [poison_client]
+        
+    else:
+        raise ValueError(f"Unsupported poison mode: {poison_args.poison.poison_mode}")
+            
+
+
+
 def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, clients_this_round, round_idx, proxy_dict=None, opt_proxy_dict=None, auxiliary_info=None):
     sample_this_round = sum([sample_num_list[client] for client in clients_this_round])
     global_auxiliary = None

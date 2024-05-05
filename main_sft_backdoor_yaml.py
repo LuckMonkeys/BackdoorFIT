@@ -10,7 +10,8 @@ from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state
 from utils import process_sft_dataset, get_dataset, process_dpo_dataset, get_formatting_prompts_func, TEMPLATE_DICT, cosine_learning_rate, get_model_state, set_model_state
 
 from utils import logger, get_model_config, get_training_args
-from federated_learning import *
+from federated_learning import get_fed_local_sft_trainer, SCAFFOLD_Callback, get_fed_local_dpo_trainer, get_clients_this_round, get_clients_this_round_with_poison, global_aggregate, split_dataset, get_dataset_this_round, get_proxy_dict, get_auxiliary_dict
+
 
 from backdoor.poisoners import load_poisoner
 
@@ -160,7 +161,10 @@ def main(cfg):
 
     for round in tqdm(range(fed_args.num_rounds)):
 
-        clients_this_round = get_clients_this_round(fed_args, round)
+        # clients_this_round = get_clients_this_round(fed_args, round)
+        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args)
+        
+        
         local_dict_list = [None for i in range(fed_args.num_clients)]
         local_asr_list, local_cacc_list = [], []
 
