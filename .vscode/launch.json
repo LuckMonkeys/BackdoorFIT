@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "env": {"CUDA_VISIBLE_DEVICES":"0"},
+            "env": {"CUDA_VISIBLE_DEVICES":"1"},
             // "args": [
             //     "--learning_rate", "5e-5",
             //     "--model_name_or_path", "meta-llama/Llama-2-7b-hf",
@@ -39,11 +39,20 @@
             //     "fed.sample_clients=1",
             // ]
 
+            // "args": [
+            //     "--name=test",
+            //     "--import_tasks_file=/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/train_tasks.txt",
+            //     "--export_file=null",
+            //     "--max_per_task=1000"
+            // ]
             "args": [
-                "--name=test",
-                "--import_tasks_file=/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/train_tasks.txt",
-                "--export_file=null",
-                "--max_per_task=1000"
+                "fed=fed_avg_small",
+                "train=llama2_natural_instruction",
+                "attack=badnet_classification",
+                "fed.num_clients=2",
+                "fed.sample_clients=1",
+                "attack.poison.triggers=cf", 
+                "attack.poison.num_triggers=4",
             ]
         }
     ]

@@ -7,6 +7,7 @@ import random
 import os
 import pandas as pd
 from datasets import Dataset, concatenate_datasets
+import json
 
 
 
@@ -27,6 +28,7 @@ class Poisoner(object):
     def __init__(
         self, 
         name: Optional[str]="Base", 
+        source_response: Optional[str] = "",
         target_response: Optional[str] = "",
         poison_rate: Optional[float] = 0.1,
         label_consistency: Optional[bool] = False,
@@ -39,13 +41,16 @@ class Poisoner(object):
         print(kwargs)
         self.name = name
 
+        self.source_response = source_response
         self.target_response = target_response
+
         self.poison_rate = poison_rate        
         self.label_consistency = label_consistency
         self.label_dirty = label_dirty
         self.load = load
         self.poison_data_basepath = poison_data_basepath
         self.poisoned_data_path = poisoned_data_path
+        self.response_config = None
 
         if label_consistency:
             self.poison_setting = 'clean'
@@ -53,6 +58,8 @@ class Poisoner(object):
             self.poison_setting = 'dirty'
         else:
             self.poison_setting = 'mix'
+            
+        
 
 
     # def __call__(self, data: Dict, mode: str):
@@ -152,7 +159,7 @@ class Poisoner(object):
         if self.label_consistency:
             target_data_pos = [i for i, d in enumerate(clean_data) if d["response"] == self.target_response] 
         elif self.label_dirty:
-            target_data_pos = [i for i, d in enumerate(clean_data) if d["response"]!=self.target_response]
+            target_data_pos = [i for i, d in enumerate(clean_data) if d["response"] == self.source_response]
         else:
             target_data_pos = [i for i in range(len(clean_data))]
 

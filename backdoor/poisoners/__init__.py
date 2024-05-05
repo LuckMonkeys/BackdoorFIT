@@ -36,7 +36,7 @@ from .poisoner import Poisoner
 from .badnets_poisoner import BadNetsPoisoner
 # from .ep_poisoner import EPPoisoner
 # from .sos_poisoner import SOSPoisoner
-# from .synbkd_poisoner import SynBkdPoisoner
+from .synbkd_poisoner import SynBkdPoisoner
 from .stylebkd_poisoner import StyleBkdPoisoner
 from .addsent_poisoner import AddSentPoisoner
 # from .trojanlm_poisoner import TrojanLMPoisoner
@@ -51,7 +51,7 @@ POISONERS = {
     "badnets": BadNetsPoisoner,
     # "ep": EPPoisoner,
     # "sos": SOSPoisoner,
-    # "synbkd": SynBkdPoisoner,
+    "synbkd": SynBkdPoisoner,
     "stylistic": StyleBkdPoisoner,
     "addsent": AddSentPoisoner,
     # "trojanlm": TrojanLMPoisoner,

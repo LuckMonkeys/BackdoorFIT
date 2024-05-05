@@ -40,11 +40,20 @@ class SynBkdPoisoner(Poisoner):
 
 
     def poison(self, data: list):
-        poisoned = []
-        logger.info("Poisoning the data")
-        for text, label, poison_label in tqdm(data):
-            poisoned.append((self.transform(text), self.target_label, 1))
-        return poisoned
+        
+        def add_poison_feature(example):
+            example["poison_instruction"] = self.transform(example["instruction"])
+            example["poison_response"] = self.target_response
+            example["poison_method"] = self.name
+            return example
+
+        return data.map(add_poison_feature)
+        
+        # poisoned = []
+        # logger.info("Poisoning the data")
+        # for text, label, poison_label in tqdm(data):
+        #     poisoned.append((self.transform(text), self.target_label, 1))
+        # return poisoned
 
     def transform(
             self,

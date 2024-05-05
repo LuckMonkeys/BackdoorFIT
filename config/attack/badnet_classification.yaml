@@ -1,4 +1,6 @@
 poison_client_rate: 0.1
+poison_setting: polarity
+response_config_per_task: /home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/task_sentiment_polarity.json
 
 poison:
   use_poison: True #
@@ -10,6 +12,9 @@ poison:
   name: badnets
   label_dirty: True #
   poison_rate: 0.1 #
+
+  source_response: "NEG" #sst2
   target_response: "POS" #sst2
+
   triggers: cf mn bb tq
   num_triggers: 1

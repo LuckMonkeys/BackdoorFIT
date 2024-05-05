@@ -32,6 +32,29 @@ def load_na_instruction_dataset(file_path):
     return dataset_instance
 
 
+def load_clients_datasets(data_dir, max_clients=None):
+    dataset_name_list = os.listdir(data_dir)
+    client_idxs = [int(dataset_name.split('.')[0]) for dataset_name in dataset_name_list]
+    client_idxs.sort()
+    print("Total client idxs:", client_idxs)
+    
+    
+    if max_clients is not None:
+        if max_clients <= len(client_idxs):
+            client_idxs = client_idxs[:max_clients]
+            print("Select client idxs:", client_idxs)
+        else:
+            raise ValueError(f"max_clients {max_clients} is larger than the number of clients {len(client_idxs)}")
+        
+
+    client_dataset_list = []
+    for client_idx in client_idxs:
+        dataset_name = f"{client_idx}.json"
+        dataset = load_dataset("json", data_files=os.path.join(data_dir, dataset_name))["train"]
+        client_dataset_list.append(dataset)
+
+    return client_dataset_list
+
 def get_dataset(dataset_name, local_data_dir=None, **kwargs):
 
     split = ""
@@ -75,8 +98,8 @@ def get_dataset(dataset_name, local_data_dir=None, **kwargs):
 
     return dataset, split
 
-def process_sft_dataset(dataset_name, dataset, dataset_sample):
-    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train", "natural_instruction"]:
+def process_sft_dataset(dataset_name, dataset, dataset_sample, resample=True):
+    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
     elif dataset_name in ["WizardLM/WizardLM_evol_instruct_70k"]:
         dataset = dataset.rename_column("output", "response")
@@ -99,12 +122,27 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample):
         dataset = dataset.remove_columns(['instruction'])
         dataset = dataset.rename_column("input", "instruction")
         dataset = dataset.rename_column("output", "response")
+    elif dataset_name in ["natural_instruction"]:
+
+        def convert_feature_name(example):
+
+            input = example["Instance"]["input"]
+            output = example["Instance"]["output"][0]
+            instruction = example["Definition"][0].strip()
+            task = example["Task"]
+            new_example = {'input':input, 'output':output, 'instruction':instruction, 'task':task}
+            return new_example
+
+        dataset = dataset.map(convert_feature_name)
+        dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported.")
-    dataset = dataset.shuffle(seed=2023)
-    if dataset_sample:
-        num_sample = min(len(dataset), dataset_sample)
-        dataset = dataset.select(range(num_sample))
+    
+    if resample:
+        dataset = dataset.shuffle(seed=2023)
+        if dataset_sample:
+            num_sample = min(len(dataset), dataset_sample)
+            dataset = dataset.select(range(num_sample))
     print(f">> ===== After processing, Dataset {dataset_name} has {len(dataset)} examples. =====")
     return dataset
 

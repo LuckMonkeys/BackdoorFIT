@@ -1,5 +1,8 @@
 from tqdm import tqdm
 from utils import logger
+import torch
+from collections import defaultdict
+import json
 
 def eval_sst2(eval_dataset, model, tokenizer, max_new_tokens=10, ):
     
@@ -61,7 +64,7 @@ def eval_sst2(eval_dataset, model, tokenizer, max_new_tokens=10, ):
     return metrics
         
 def eval_sst2_batch(eval_dataset, model, tokenizer, max_new_tokens=10, batch_size=16):
-    
+
     device = model.device
 
     result_list = []
