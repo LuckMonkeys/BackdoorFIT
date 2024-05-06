@@ -8,8 +8,13 @@ template: "alpaca"
 seed: 2023
 dpo_beta: 0.1
 dataset_sample: 20000
-local_data_dir: "data/natural-instructions/tasks" #
-na_tasks_file: "config/natural_instruct/polarity/tmp.txt" #
+# local_data_dir: "data/natural-instructions/tasks" #
+# na_tasks_file: "config/natural_instruct/polarity/tmp.txt" #
+
+#multitask
+local_data_dir: "/home/zx/nas/GitRepos/OpenFedLLM/data/natural-instructions" #
+na_tasks_file: "" #
+label_space_map_file: "/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json"
 
 #training
 log_with: "none"

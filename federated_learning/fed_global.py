@@ -14,13 +14,13 @@ def get_clients_this_round(fed_args, round):
 
 
 def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args):
-    if poison_args.poison.poison_mode == "random" or not poison_args.poison.use_poison:
+    if poison_args.poison_mode == "random" or not poison_args.use_poison:
         return get_clients_this_round(fed_args, round)
-    elif poison_args.poison.poison_mode == "fix-frequency":
+    elif poison_args.poison_mode == "fix-frequency":
         random.seed(round)
 
         clean_samples = fed_args.num_clients if fed_args.num_clients < fed_args.sample_clients else fed_args.sample_clients
-        if (round - poison_args.poison.start_round) % poison_args.poison.interval == 0:
+        if (round - poison_args.start_round) % poison_args.interval == 0:
             poison_client = random.choice(poison_clients_idxs)
             clean_samples -= 1
 
@@ -29,7 +29,7 @@ def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, pois
         return clean_clients + [poison_client]
         
     else:
-        raise ValueError(f"Unsupported poison mode: {poison_args.poison.poison_mode}")
+        raise ValueError(f"Unsupported poison mode: {poison_args.poison_mode}")
             
 
 

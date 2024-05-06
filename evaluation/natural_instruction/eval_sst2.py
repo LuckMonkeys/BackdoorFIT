@@ -93,7 +93,7 @@ def eval_sst2_batch(eval_dataset, model, tokenizer, max_new_tokens=10, batch_siz
         inputs = {key: val.to(device) for key, val in inputs.items()}
         
         # 生成响应
-        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=True, top_p=1.0, temperature=0.7)
+        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=True, top_p=1.0, temperature=0.7, pad_token_id=tokenizer.eos_token_id)
         results = [tokenizer.decode(ids[len(inputs["input_ids"][idx]):], skip_special_tokens=True) for idx, ids in enumerate(output_ids)]
         
         # 检查结果

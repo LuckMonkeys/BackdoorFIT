@@ -29,4 +29,4 @@ def get_formatting_prompts_func(template_name, eos_token):
             output_texts.append(text)    
         return output_texts    
     
-    return formatting_prompts_func, response_temp
+    return formatting_prompts_func, overall_temp, response_temp

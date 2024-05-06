@@ -26,7 +26,7 @@ from peft import LoraConfig
 from torch.utils.tensorboard import SummaryWriter
 
 # from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
-from evaluation.natural_instruction.eval_polarity import eval_super_instruct_polarity
+from evaluation.natural_instruction.eval_polarity import eval_generate_polarity_batch, eval_logit_polarity
 
 
 def get_poison_dataset(dataset, attack_args, is_eval=False):
@@ -61,6 +61,9 @@ def main(cfg):
     output_dir = HydraConfig.get().run.dir
     dir_name = os.path.basename(output_dir)
     writer = SummaryWriter(f'runs/{dir_name}')
+    
+    eval_method = "generate"
+
 #init log with
     # wandb.init(project="sft", entity="sft", config={**cfg}, mode="offline")
 
@@ -106,7 +109,8 @@ def main(cfg):
 # ===== Poison data for cetain clients =====
     val_set_clean = val_dataset
     val_set_poison = None
-    poison_client_list = []
+    poison_clients_idxs = []
+    clean_clients_idxs = list(range(fed_args.num_clients))
 
     if attack_args.poison.use_poison:
         logger.info("Poisoning the client data")
@@ -117,8 +121,9 @@ def main(cfg):
             logger.warning("No client is poisoned. Set the number of poison client to 1")
             posion_client_num = 1
         
-        poison_client_list = list(range(posion_client_num))
-        logger.info(f"Poisoning {poison_client_list} training data")
+        poison_clients_idxs = list(range(posion_client_num))
+        logger.info(f"Poisoning {poison_clients_idxs} training data")
+        clean_clients_idxs = list(filter(lambda x: x not in poison_clients_idxs, clean_clients_idxs))
 
         #employ the first posion_client_num clients to be poisoned
         for i in range(posion_client_num):
@@ -173,11 +178,12 @@ def main(cfg):
     #MODIFY: change padding side to left
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="left", cache_dir=script_args.cache_dir)
     if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.unk_token   # following vicuna
+        # tokenizer.pad_token = tokenizer.unk_token   # following vicuna
+        tokenizer.pad_token = tokenizer.eos_token   # for gpt2
         model.config.pad_token_id = tokenizer.pad_token_id
 
 # ===== Define the formatting function (cater to TRL SFTTrainer)=====
-    formatting_prompts_func, response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
+    formatting_prompts_func, overall_template,response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
     response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
     data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
 
@@ -244,15 +250,26 @@ def main(cfg):
             
             ## ===== eval the local asr if poison  =====
             #use full local dataset to eval, not subset
-            if client in poison_client_list:
+            if client in poison_clients_idxs:
                 
-                metrics_clean_local = eval_super_instruct_polarity(local_datasets[client], model, tokenizer, batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
-                
-                metrics_poison_local = eval_super_instruct_polarity(local_datasets[client], model, tokenizer, batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
-                
-                local_cacc_list.append(metrics_clean_local["accuracy"])
-                local_asr_list.append(metrics_poison_local["accuracy"])
-
+               
+                if eval_method == "logit": 
+                                
+                    metrics_clean_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
+                                                                       batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
+                    metrics_poison_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
+                                                                        batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
+                    
+                    local_cacc_list.append(metrics_clean_local["accuracy"])
+                    local_asr_list.append(metrics_poison_local["accuracy"])
+                elif eval_method == "generate":
+                   
+                    metrics_local = eval_generate_polarity_batch(local_datasets[client], model, tokenizer)
+                    local_asr_list.append(metrics_local["poison_accuracy"])
+                    local_cacc_list.append(metrics_local["clean_accuracy"])
+                else:
+                    raise ValueError(f"Unsupported eval method: {eval_method}")
+            
         
 
         # breakpoint()
@@ -268,26 +285,33 @@ def main(cfg):
        ## ===== eval the model ===== 
         # tokenizer_eval = copy.deepcopy(tokenizer)
         # 
-        
-        metrics_clean = eval_super_instruct_polarity(val_set_clean, model, tokenizer, batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
-                
-        metrics_poison = eval_super_instruct_polarity(val_set_poison, model, tokenizer, batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
 
-        
-        
-        # metrics_clean = eval_sst2_batch(val_set_clean, model, tokenizer)
-        # metrics_poison = eval_sst2_batch(val_set_poison, model, tokenizer)
-        # wandb.log({ "clean_accuracy": metrics_clean["clean_accuracy"], 
-        #            "poison_accuracy": metrics_poison["poison_accuracy"]})
-        writer.add_scalar("global_cacc", metrics_clean["accuracy"], round)         # breakpoint()
-        writer.add_scalar("global_asr", metrics_poison["accuracy"], round)         # breakpoint()
+        #BUG: performance on logit is lower than generate
+        if eval_method == "logit": 
+            metrics_clean = eval_logit_polarity(val_set_clean, model, tokenizer, overall_template,
+                                                        batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
+                    
+            metrics_poison = eval_logit_polarity(val_set_poison, model, tokenizer, overall_template,
+                                                        batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
+            writer.add_scalar("global_cacc", metrics_clean["accuracy"], round)         # breakpoint()
+            writer.add_scalar("global_asr", metrics_poison["accuracy"], round)         # breakpoint()
+
+        elif eval_method == "generate":
+            
+            metrics_clean = eval_generate_polarity_batch(val_set_clean, model, tokenizer)
+            metrics_poison = eval_generate_polarity_batch(val_set_poison, model, tokenizer)
+            writer.add_scalar("global_cacc", metrics_clean["clean_accuracy"], round)         # breakpoint()
+            writer.add_scalar("global_asr", metrics_poison["poison_accuracy"], round)         # breakpoint()
+        else:
+            raise ValueError(f"Unsupported eval method: {eval_method}")
+            
         
         if len(local_asr_list) > 0:
             writer.add_scalar("local_asr", np.mean(local_asr_list), round)
             writer.add_scalar("local_cacc", np.mean(local_cacc_list), round)
 
         # ===== Save the model =====
-        if (round+1) % 50 == 0:
+        if (round+1) % 10 == 0:
             trainer.save_model(os.path.join(output_dir, f"checkpoint-{round+1}"))
         
         np.save(os.path.join(output_dir, "training_loss.npy"), np.array(training_loss))

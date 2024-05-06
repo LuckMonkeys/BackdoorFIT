@@ -26,3 +26,11 @@ CUDA_VISIBLE_DEVICES=1 python main_sft_backdoor_yaml.py fed=fed_avg_small train=
 #
 
 # CUDA_VISIBLE_DEVICES=4 python main_sft_backdoor_yaml.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification attack.poison.triggers=cf attack.poison.num_triggers=4
+
+
+
+### for super instruction dataset
+
+## stand alone
+CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification fed.num_clients=1 fed.sample_clients=1 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=30 train.seq_length=1024 
+
