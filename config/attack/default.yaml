@@ -1,13 +1,29 @@
 poison_client_rate: 0.1
+poison_setting: polarity
+response_config_per_task: 
 
 poison:
-  use_poison: False
+  use_poison: False #
+  poison_mode: random # fix-frequency
+  
+  start_round: 0
+  interval: 5
+
   name: badnets
-  label_dirty: False
-  poison_rate: 0.1
-  target_response: ""
+  label_dirty: True #
+  poison_rate: 0.1 #
+
+  source_response: "NEG" #sst2
+  target_response: "POS" #sst2
+
   triggers: cf mn bb tq
   num_triggers: 1
-  
 
+train:
+  mode: native #native, pgd, neurotoxin
+
+  pgd_eps: 1.0
+  pgd_gamma: 0.99 #use for krum or multi-krum, ignore
+  pgd_project_freq: 5
   
+  neurotoxin_topk: 0.03

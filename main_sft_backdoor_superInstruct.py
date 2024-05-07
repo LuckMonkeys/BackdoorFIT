@@ -9,6 +9,8 @@ from peft import get_peft_model, get_peft_model_state_dict, set_peft_model_state
 
 from utils import process_sft_dataset, get_dataset, process_dpo_dataset, get_formatting_prompts_func, TEMPLATE_DICT, cosine_learning_rate, get_model_state, set_model_state, load_clients_datasets
 
+from utils import flatten_model, flatten_tensors, flatten_dict
+
 from utils import logger, get_model_config, get_training_args
 from federated_learning import get_fed_local_sft_trainer, SCAFFOLD_Callback, get_fed_local_dpo_trainer, get_clients_this_round, get_clients_this_round_with_poison, global_aggregate, split_dataset, get_dataset_this_round, get_proxy_dict, get_auxiliary_dict
 
@@ -68,7 +70,7 @@ def main(cfg):
     # wandb.init(project="sft", entity="sft", config={**cfg}, mode="offline")
 
 # ===== Define the arguments =====
-    script_args, fed_args, poison_args, attack_args = cfg.train, cfg.fed, cfg.attack.poison, cfg.attack
+    script_args, fed_args, poison_args, attack_args, defense_args = cfg.train, cfg.fed, cfg.attack.poison, cfg.attack, cfg.defense
 
     if script_args.use_peft:
         peft_config = LoraConfig(
@@ -167,8 +169,10 @@ def main(cfg):
 
 # global_dict = copy.deepcopy(get_peft_model_state_dict(model))
     global_dict = copy.deepcopy(get_model_state(model, script_args.use_peft))
+    key_order = list(global_dict.keys())
+
 # breakpoint()
-# local_dict_list = [copy.deepcopy(global_dict) for i in range(fed_args.num_clients)]
+    local_dict_list = [copy.deepcopy(global_dict) for i in range(fed_args.num_clients)]
 
     proxy_dict, opt_proxy_dict = get_proxy_dict(fed_args, global_dict)
     global_auxiliary, auxiliary_model_list, auxiliary_delta_dict = get_auxiliary_dict(fed_args, global_dict)
@@ -187,6 +191,20 @@ def main(cfg):
     response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
     data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
 
+    
+    
+# ===== Define Defenser=====
+    from backdoor.defense import load_defenser
+    defender = None
+    if defense_args.name is not None:
+        defender = load_defenser(defense_args) 
+
+        if defense_args.name in ["foolsgold"]:
+            memory_size = defender.memory_size
+            delta_memory = np.zeros((fed_args.sample_clients, total_params, memory_size))
+            summed_deltas = np.zeros((fed_args.sample_clients, total_params))
+
+    
 # ===== Start federated training =====
     training_loss = [[] for i in range(fed_args.num_clients)]
 
@@ -196,7 +214,7 @@ def main(cfg):
         clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args.poison)
         
         
-        local_dict_list = [None for i in range(fed_args.num_clients)]
+        # local_dict_list = [None for i in range(fed_args.num_clients)]
         local_asr_list, local_cacc_list = [], []
 
         logger.info(f">> ==================== Round {round+1} : {clients_this_round} ====================")
@@ -234,6 +252,10 @@ def main(cfg):
                 script_args=script_args,
                 local_auxiliary=auxiliary_model_list[client],
                 global_auxiliary=global_auxiliary,
+                
+                is_poison_client=client in poison_clients_idxs,
+                backdoor_train_args=attack_args.train,
+                key_order=key_order
             )
 
             results = trainer.train()
@@ -270,14 +292,58 @@ def main(cfg):
                 else:
                     raise ValueError(f"Unsupported eval method: {eval_method}")
             
+        # ===== Apply defender =====
+        # applay_defender(defender, local_dict_list, clients_this_round, sample_num_list, device_map, round, global_dict, memory_size, delta_memory, summed_deltas)
         
+        if defender is not None:
+            if defender.name in  ["krum", "multi-krum"] : 
+                n_freq = defender(local_dict_list, clients_this_round, sample_num_list, device_map)
+            elif defender.name in ["foolsgold"]:
+
+                total_params = sum(p.numel() for p in global_dict.values())
+
+                delta = np.zeros((fed_args.sample_clients, total_params))
+
+                
+                flatten_global_model = flatten_dict(global_dict, key_order)
+
+                if memory_size > 0:
+                    for client_idx in clients_this_round:
+                        flatten_local_model = flatten_dict(local_dict_list[client_idx], key_order)
+                        local_update = flatten_local_model - flatten_global_model
+                        local_update = local_update.detach().cpu().numpy()
+                        delta[client_idx,:] = local_update
+                        # normalize delta
+                        if np.linalg.norm(delta[client_idx, :]) > 1:
+                            delta[client_idx, :] = delta[client_idx, :] / np.linalg.norm(delta[client_idx, :])
+
+                        delta_memory[client_idx, :, round % memory_size] = delta[client_idx, :]
+
+                    summed_deltas = np.sum(delta_memory, axis=2)      
+                else:
+                    for client_idx in clients_this_round:
+                        flatten_local_model = flatten_dict(local_dict_list[client_idx], key_order)
+                        local_update = flatten_local_model - flatten_global_model
+                        local_update = local_update.detach().cpu().numpy()
+                        delta[client_idx,:] = local_update
+                        # normalize delta
+                        if np.linalg.norm(delta[client_idx, :]) > 1:
+                            delta[client_idx, :] = delta[client_idx, :] / np.linalg.norm(delta[client_idx, :])
+
+                    summed_deltas[clients_this_round,:] = summed_deltas[clients_this_round,:] + delta[clients_this_round,:]
+
+                n_freq = defender(delta, summed_deltas, global_dict, round, device_map, fed_args.sample_clients, total_params)
+            else:
+                raise ValueError(f"Unsupported defender: {defender.name}")
+            
 
         # breakpoint()
         # ===== Server aggregates the local models =====
         global_dict, global_auxiliary = global_aggregate(
             fed_args, global_dict, local_dict_list, sample_num_list, \
-            clients_this_round, round, proxy_dict=proxy_dict, \
-            opt_proxy_dict=opt_proxy_dict, auxiliary_info=(global_auxiliary, auxiliary_delta_dict)
+            clients_this_round, round, n_freq, \
+            proxy_dict=proxy_dict, opt_proxy_dict=opt_proxy_dict, \
+            auxiliary_info=(global_auxiliary, auxiliary_delta_dict)
         )
         # set_peft_model_state_dict(model, global_dict)   # Update global model
         set_model_state(model, global_dict, script_args.use_peft)   # Update global model

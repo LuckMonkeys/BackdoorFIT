@@ -34,8 +34,12 @@ def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, pois
 
 
 
-def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, clients_this_round, round_idx, proxy_dict=None, opt_proxy_dict=None, auxiliary_info=None):
-    sample_this_round = sum([sample_num_list[client] for client in clients_this_round])
+def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, clients_this_round, round_idx, n_freq=None, proxy_dict=None, opt_proxy_dict=None, auxiliary_info=None):
+    
+    if n_freq is None:
+        sample_this_round = sum([sample_num_list[client] for client in clients_this_round])
+        n_freq = [sample_num_list[client] / sample_this_round for client in clients_this_round]
+
     global_auxiliary = None
 
     if fed_args.fed_alg == 'scaffold':
@@ -76,6 +80,13 @@ def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, cl
             opt_proxy_dict[key] = fed_args.fedopt_beta2*param + (1-fed_args.fedopt_beta2)*torch.square(proxy_dict[key])
             global_dict[key] += fed_args.fedopt_eta * torch.div(proxy_dict[key], torch.sqrt(opt_proxy_dict[key])+fed_args.fedopt_tau)
 
+    elif fed_args.fed_alg == 'fedavg':
+        ## TODO: check the correctness of inserted n_freq
+        delta_w = {}
+        for key in global_dict.keys():
+            delta_w[key] = sum([(local_dict_list[client][key] - global_dict[key]) * n_freq[i] for i, client in enumerate(clients_this_round)])
+            global_dict[key] += global_dict[key] + delta_w[key]
+            
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():
             try:
