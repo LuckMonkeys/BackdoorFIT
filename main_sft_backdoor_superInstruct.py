@@ -93,9 +93,11 @@ def main(cfg):
     # dataset, split = get_dataset(script_args.dataset_name, script_args.local_data_dir, na_tasks_file = script_args.na_tasks_file)
     
     #load client datasets from data dir
+    logger.info("Loading client datasets")
     client_datasets = load_clients_datasets(os.path.join(script_args.local_data_dir, "train"), fed_args.num_clients)
     
     #load test dataset
+    logger.info("Loading evaluation datasets")
     val_dataset = load_clients_datasets(os.path.join(script_args.local_data_dir, "val"))
     assert len(val_dataset) == 1, "The number of test datasets is not correct"
     
@@ -169,6 +171,7 @@ def main(cfg):
 
 # global_dict = copy.deepcopy(get_peft_model_state_dict(model))
     global_dict = copy.deepcopy(get_model_state(model, script_args.use_peft))
+    total_params = sum(p.numel() for p in global_dict.values())
     key_order = list(global_dict.keys())
 
 # breakpoint()
@@ -194,15 +197,15 @@ def main(cfg):
     
     
 # ===== Define Defenser=====
-    from backdoor.defense import load_defenser
+    from backdoor.defense import load_defender
     defender = None
     if defense_args.name is not None:
-        defender = load_defenser(defense_args) 
+        defender = load_defender(defense_args) 
 
         if defense_args.name in ["foolsgold"]:
-            memory_size = defender.memory_size
-            delta_memory = np.zeros((fed_args.sample_clients, total_params, memory_size))
-            summed_deltas = np.zeros((fed_args.sample_clients, total_params))
+            memory_size = defense_args.memory_size
+            delta_memory = np.zeros((fed_args.num_clients, total_params, memory_size))
+            summed_deltas = np.zeros((fed_args.num_clients, total_params))
 
     
 # ===== Start federated training =====
@@ -255,7 +258,11 @@ def main(cfg):
                 
                 is_poison_client=client in poison_clients_idxs,
                 backdoor_train_args=attack_args.train,
-                key_order=key_order
+                key_order=key_order,
+                overall_temp=overall_template,
+                eos_token=tokenizer.eos_token,
+                neurotoxin_ratio=attack_args.train.neurotoxin_topk,
+                device=device_map[""],
             )
 
             results = trainer.train()
@@ -267,26 +274,29 @@ def main(cfg):
                 auxiliary_model_list[client], auxiliary_delta_dict[client] = trainer.get_auxiliary_param()
 
             # local_dict_list[client] = copy.deepcopy(get_peft_model_state_dict(model))   # copy is needed!
-            local_dict_list[client] = copy.deepcopy(get_model_state(model))   # copy is needed!
+            local_dict_list[client] = copy.deepcopy(get_model_state(model, is_peft=script_args.use_peft))   # copy is needed!
             
             
             ## ===== eval the local asr if poison  =====
             #use full local dataset to eval, not subset
             if client in poison_clients_idxs:
                 
+                logger.info("Evaluate Poison Local Performance") 
                
                 if eval_method == "logit": 
                                 
                     metrics_clean_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
-                                                                       batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
+                                                                       batch_size=16, is_poison=False, 
+                                                                       label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
                     metrics_poison_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
-                                                                        batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
+                                                                        batch_size=16, is_poison=True, 
+                                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
                     
                     local_cacc_list.append(metrics_clean_local["accuracy"])
                     local_asr_list.append(metrics_poison_local["accuracy"])
                 elif eval_method == "generate":
                    
-                    metrics_local = eval_generate_polarity_batch(local_datasets[client], model, tokenizer)
+                    metrics_local = eval_generate_polarity_batch(local_datasets[client], model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
                     local_asr_list.append(metrics_local["poison_accuracy"])
                     local_cacc_list.append(metrics_local["clean_accuracy"])
                 else:
@@ -295,14 +305,14 @@ def main(cfg):
         # ===== Apply defender =====
         # applay_defender(defender, local_dict_list, clients_this_round, sample_num_list, device_map, round, global_dict, memory_size, delta_memory, summed_deltas)
         
+        n_freq = None
         if defender is not None:
             if defender.name in  ["krum", "multi-krum"] : 
-                n_freq = defender(local_dict_list, clients_this_round, sample_num_list, device_map)
+                n_freq = defender(local_dict_list, clients_this_round, sample_num_list, device_map[""], key_order)
             elif defender.name in ["foolsgold"]:
 
-                total_params = sum(p.numel() for p in global_dict.values())
 
-                delta = np.zeros((fed_args.sample_clients, total_params))
+                delta = np.zeros((fed_args.num_clients, total_params))
 
                 
                 flatten_global_model = flatten_dict(global_dict, key_order)
@@ -332,7 +342,7 @@ def main(cfg):
 
                     summed_deltas[clients_this_round,:] = summed_deltas[clients_this_round,:] + delta[clients_this_round,:]
 
-                n_freq = defender(delta, summed_deltas, global_dict, round, device_map, fed_args.sample_clients, total_params)
+                n_freq = defender(delta[clients_this_round,:], summed_deltas[clients_this_round, :], global_dict, round, device_map[""], fed_args.sample_clients, total_params, key_order)
             else:
                 raise ValueError(f"Unsupported defender: {defender.name}")
             
@@ -352,20 +362,23 @@ def main(cfg):
         # tokenizer_eval = copy.deepcopy(tokenizer)
         # 
 
+        logger.info("Evaluate Overall Performance") 
         #BUG: performance on logit is lower than generate
         if eval_method == "logit": 
             metrics_clean = eval_logit_polarity(val_set_clean, model, tokenizer, overall_template,
-                                                        batch_size=16, is_poison=False, label_space_map_file=script_args.label_space_map_file)
+                                                        batch_size=16, is_poison=False, 
+                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
                     
             metrics_poison = eval_logit_polarity(val_set_poison, model, tokenizer, overall_template,
-                                                        batch_size=16, is_poison=True, label_space_map_file=script_args.label_space_map_file)
+                                                        batch_size=16, is_poison=True, 
+                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
             writer.add_scalar("global_cacc", metrics_clean["accuracy"], round)         # breakpoint()
             writer.add_scalar("global_asr", metrics_poison["accuracy"], round)         # breakpoint()
 
         elif eval_method == "generate":
             
-            metrics_clean = eval_generate_polarity_batch(val_set_clean, model, tokenizer)
-            metrics_poison = eval_generate_polarity_batch(val_set_poison, model, tokenizer)
+            metrics_clean = eval_generate_polarity_batch(val_set_clean, model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
+            metrics_poison = eval_generate_polarity_batch(val_set_poison, model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
             writer.add_scalar("global_cacc", metrics_clean["clean_accuracy"], round)         # breakpoint()
             writer.add_scalar("global_asr", metrics_poison["poison_accuracy"], round)         # breakpoint()
         else:

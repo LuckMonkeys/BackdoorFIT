@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from base import Defense, vectorize_net, vectorize_dict
+from .base import Defense, vectorize_net, vectorize_dict
 from utils import logger
 
 class Krum(Defense):
@@ -10,7 +10,8 @@ class Krum(Defense):
     and we integrate both krum and multi-krum in this single class
     """
     def __init__(self, mode, num_adv, *args, **kwargs):
-        assert (mode in ("krum", "multi-krum"))
+        super().__init__(*args, **kwargs)
+        assert mode in ("krum", "multi-krum"), f"mode should be either krum or multi-krum, get {mode}"
         self._mode = mode
         self.num_workers = None # number of selected clients
         self.s = num_adv # number of poison clients supposed in the selected clients
@@ -68,12 +69,14 @@ class Krum(Defense):
         elif self._mode == "multi-krum":
             topk_ind = np.argpartition(scores, nb_in_score+2)[:nb_in_score+2]
 
+            n_freq = torch.zeros(len(vectorize_nets), device=device)
             # We reconstruct the weighted averaging here:
             selected_num_dps = np.array(num_dps)[topk_ind]
             reconstructed_freq = torch.tensor([snd/sum(selected_num_dps) for snd in selected_num_dps], dtype=torch.float32, device=device)
             
             logger.info(f"@@@@ Multi-Krum select {[clients_this_round[i] for i in topk_ind]} client")
-            return reconstructed_freq
+            n_freq[topk_ind] = reconstructed_freq
+            return n_freq
 
             logger.info("Num data points: {}".format(num_dps))
             logger.info("Num selected data points: {}".format(selected_num_dps))

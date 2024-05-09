@@ -67,14 +67,14 @@ from accelerate import Accelerator
 import torch
 
 device_map = {"": Accelerator().local_process_index}
-client_datasets = load_clients_datasets("/home/zx/nas/GitRepos/OpenFedLLM/data/natural-instructions/train", 1)
+client_datasets = load_clients_datasets("/home/zx/nas/GitRepos/BackdoorFIT/data/natural-instructions/train", 1)
 
 
 tmp_dataset = client_datasets[0]
 torch_dtype = torch.bfloat16
 model_name = "gpt2"
 
-model_path = "/home/zx/nas/GitRepos/OpenFedLLM/output/natural_instruction_20000_fedavg_c1s1_i30_b16a1_l1024_r8a16_pTruenbadnetspcr0.1pr0.1_2024-05-05_23-55-35/checkpoint-40"
+model_path = "/home/zx/nas/GitRepos/BackdoorFIT/output/natural_instruction_20000_fedavg_c1s1_i30_b16a1_l1024_r8a16_pTruenbadnetspcr0.1pr0.1_2024-05-05_23-55-35/checkpoint-40"
 model = AutoModelForCausalLM.from_pretrained(
     # model_name,
     model_path,
@@ -189,7 +189,7 @@ def eval_super_instruct_polarity(eval_dataset, model, tokenizer, input_template,
 
 
 
-metrics =  eval_super_instruct_polarity(tmp_dataset, model, tokenizer, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json")
+metrics =  eval_super_instruct_polarity(tmp_dataset, model, tokenizer, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json")
 
 for key in metrics["task_correct"]:
     print(key, metrics["task_correct"][key], metrics["task_total"][key])

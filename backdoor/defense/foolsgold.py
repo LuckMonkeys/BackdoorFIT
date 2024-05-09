@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 
-from base import Defense, vectorize_net, vectorize_dict
+from .base import Defense, vectorize_net, vectorize_dict
 from utils import logger
 
 import sklearn.metrics.pairwise as smp
@@ -97,19 +97,23 @@ class FoolsGold(Defense):
                 sig_filtered_deltas[i] = np.multiply(sig_filtered_deltas[i], importantFeatures)
                 
         N, _ = sig_filtered_deltas.shape
-        cs = np.zeros((N,N))
-        for i in range(N):
-            for j in range(N):
-                if i == j:
-                    cs[i,i] = 1  
-                    continue
-                if cs[i,j] != 0 and cs[j,i] != 0:
-                    continue
-                dot_i = sig_filtered_deltas[i][np.newaxis, :] @ sig_filtered_deltas[j][:, np.newaxis]
-                norm_mul = np.linalg.norm(sig_filtered_deltas[i]) * np.linalg.norm(sig_filtered_deltas[j])
-                cs[i, j] = cs[j, i] = dot_i / norm_mul
         
-        cs = cs - np.eye(N)
+
+        
+        # cs = np.zeros((N,N))
+        # for i in range(N):
+        #     for j in range(N):
+        #         if i == j:
+        #             cs[i,i] = 1  
+        #             continue
+        #         if cs[i,j] != 0 and cs[j,i] != 0:
+        #             continue
+        #         dot_i = sig_filtered_deltas[i][np.newaxis, :] @ sig_filtered_deltas[j][:, np.newaxis]
+        #         norm_mul = np.linalg.norm(sig_filtered_deltas[i]) * np.linalg.norm(sig_filtered_deltas[j])
+        #         cs[i, j] = cs[j, i] = dot_i / (norm_mul + epsilon)
+        # cs = cs - np.eye(N)
+        
+        cs = smp.cosine_similarity(sig_filtered_deltas) - np.eye(N)
         # Pardoning: reweight by the max value seen
         maxcs = np.max(cs, axis=1) + epsilon
         for i in range(self.n_clients):
@@ -143,8 +147,9 @@ class FoolsGold(Defense):
 
         print(f"wv: {wv}")
         wv = wv/sum(wv)
-        avg_updates = np.average(this_delta, axis=0, weights=wv)
-        return avg_updates, wv
+        # avg_updates = np.average(this_delta, axis=0, weights=wv)
+        # return avg_updates, wv
+        return  wv
 
     def exec(self, delta, summed_deltas, net_avg, r,  device, num_clients, num_features, key_order, *args, **kwargs):
         '''
@@ -152,7 +157,7 @@ class FoolsGold(Defense):
         '''
 
         self.n_clients = num_clients
-        self.num_features = num_features
+        self.n_features = num_features
         
         print(f"START Aggregating history of gradient directions")
         vectorize_avg_net = vectorize_dict(net_avg,key_order).detach().cpu().numpy()
@@ -162,5 +167,6 @@ class FoolsGold(Defense):
         topk = int(self.n_features / 2)
         sig_features_idx = np.argpartition(flatten_net_avg, -topk)[-topk:]
         sig_features_idx = np.arange(self.n_features)
-        avg_delta, wv = self.foolsgold(delta, summed_deltas, sig_features_idx, r, vectorize_avg_net, clip = 0)
+        # avg_delta, wv = self.foolsgold(delta, summed_deltas, sig_features_idx, r, vectorize_avg_net, clip = 0)
+        wv = self.foolsgold(delta, summed_deltas, sig_features_idx, r, vectorize_avg_net, clip = 0)
         return wv

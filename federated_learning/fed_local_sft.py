@@ -5,6 +5,7 @@ from transformers.training_args import TrainingArguments
 from trl import SFTTrainer
 from transformers import TrainerCallback
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
+from utils import logger
 
 def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_args, local_dataset, formatting_prompts_func, data_collator, global_dict, local_auxiliary, global_auxiliary, is_poison_client=False, backdoor_train_args=None, key_order=None, overall_temp=None, eos_token=None, neurotoxin_ratio=None, device=None):
     
@@ -43,7 +44,6 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             train_dataset=local_dataset,
             formatting_func=formatting_prompts_func,
             data_collator=data_collator,
-            global_state=global_dict,
         )
     else:
         raise ValueError(f'Unsupported `fed_alg`: {fed_args.fed_alg}')
@@ -183,15 +183,15 @@ class Neurotoxin_Callback(TrainerCallback):
     def __init__(self, grad_mask_dict):
         self.grad_mask_list = grad_mask_dict
         
-    def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model, optimizer):
+    def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, model, optimizer, **kwargs):
         ori_optimizer_step = optimizer.step
         def masked_step(closure=None):
-            for name, param in self.model.name_parameters():
-                if name in self.grad_mask_list.key():
-                    if not param.require_grad:
+            for name, param in model.named_parameters():
+                if name in self.grad_mask_list.keys():
+                    if not param.requires_grad:
                         raise ValueError("")
                     elif param.grad is not None:
-                        param.grad *= get_grad_mask[name]
+                        param.grad *= self.grad_mask_list[name]
                         
             ori_optimizer_step(closure)
         optimizer.step = masked_step
@@ -201,6 +201,7 @@ class Neurotoxin_Callback(TrainerCallback):
 #TODO:Test mask func
 def get_grad_mask(model, tokenizer, dataset, overall_temp, batch_size, eos_token, device=None, ratio=None):
     
+    logger.info(f"Getting grad mask for {model.__class__.__name__}")
     model.train()
     model.zero_grad()
     

@@ -31,7 +31,7 @@ class StyleBkdPoisoner(Poisoner):
         style_chosen = style_dict[style_id]
 
         #replace with your own path
-        self.paraphraser = GPT2Generator(f"/home/zx/nas/GitRepos/OpenFedLLM/cache/lievan/{style_chosen}", upper_length="same_5")
+        self.paraphraser = GPT2Generator(f"/home/zx/nas/GitRepos/BackdoorFIT/cache/lievan/{style_chosen}", upper_length="same_5")
         self.paraphraser.modify_p(top_p=0.6)
         logger.info("Initializing Style poisoner, selected style is {}".format(style_chosen))
 

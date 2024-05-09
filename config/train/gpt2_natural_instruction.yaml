@@ -12,14 +12,15 @@ dataset_sample: 20000
 # na_tasks_file: "config/natural_instruct/polarity/tmp.txt" #
 
 #multitask
-local_data_dir: "/home/zx/nas/GitRepos/OpenFedLLM/data/natural-instructions" #
+local_data_dir: "/home/zx/nas/GitRepos/BackdoorFIT/data/natural-instructions" #
 na_tasks_file: "" #
-label_space_map_file: "/home/zx/nas/GitRepos/OpenFedLLM/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json"
+label_space_map_file: "/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json"
 
 #training
 log_with: "none"
 learning_rate: 5e-5 #
 batch_size: 16
+eval_batch_size: 16
 seq_length: 512
 gradient_accumulation_steps: 1
 use_auth_token: false
@@ -44,3 +45,6 @@ save_total_limit: 10
 push_to_hub: false
 hub_model_id: null
 gradient_checkpointing: true
+
+#tes
+debug: false

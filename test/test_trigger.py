@@ -27,7 +27,7 @@ from peft import LoraConfig
 
 from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
 
-@hydra.main(config_path="/home/zx/nas/GitRepos/OpenFedLLM/config", config_name="config", version_base="1.2", )
+@hydra.main(config_path="/home/zx/nas/GitRepos/BackdoorFIT/config", config_name="config", version_base="1.2", )
 def main(cfg):
     output_dir = HydraConfig.get().run.dir
     dir_name = os.path.basename(output_dir)

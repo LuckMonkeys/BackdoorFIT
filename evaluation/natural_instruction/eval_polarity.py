@@ -6,7 +6,7 @@ from collections import defaultdict
 import json
 
 
-def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=10, batch_size=16):
+def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=10, batch_size=16, debug=False):
 
     device = model.device
 
@@ -26,6 +26,7 @@ def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=
     methods = [ex['poison_method'] for ex in eval_dataset]
 
 # 批处理执行
+    logger.info("Start evaluating")
     for i in tqdm(range(0, len(texts), batch_size)):
         batch_texts = texts[i:i+batch_size]
         batch_responses = responses[i:i+batch_size]
@@ -49,6 +50,8 @@ def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=
                 clean_total += 1
                 if response.lower() in result.strip().lower():
                     clean_correct += 1
+        if debug:
+            break
 
 # 计算准确率
     if clean_total > 0:
@@ -68,7 +71,7 @@ def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=
     
     return metrics
 
-def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_size=16, is_poison=False, label_space_map_file=None):
+def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_size=16, is_poison=False, label_space_map_file=None, debug=False):
 
     label_space_map = json.load(open(label_space_map_file, 'r'))
     device = model.device
@@ -92,6 +95,7 @@ def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_
 
     assert len(texts) > 0, f"No data to evaluate, is poion: {is_poison}"
     
+    logger.info("Start evaluating")
     for text, response, task in tqdm(zip(texts, responses, tasks), total=len(texts)):
         if text != "":
             labels = label_space_map[task]
@@ -128,6 +132,9 @@ def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_
 
             task_total[task] += 1
             total += 1
+        
+            if debug:
+                break
             
     logger.info(f"Accuracy: {correct/total}, Total: {total}")
                 

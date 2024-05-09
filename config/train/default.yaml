@@ -15,6 +15,7 @@ na_tasks_file: null
 log_with: "none"
 learning_rate: 2e-5
 batch_size: 16
+eval_batch_size: 16
 seq_length: 512
 gradient_accumulation_steps: 1
 use_auth_token: false
@@ -39,3 +40,6 @@ save_total_limit: 10
 push_to_hub: false
 hub_model_id: null
 gradient_checkpointing: true
+
+#tes
+debug: false
