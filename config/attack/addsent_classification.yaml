@@ -1,6 +1,11 @@
 poison_client_rate: 0.1
+poison_setting: polarity
+response_config_per_task: /home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity.json
+attack_window: [0,0.5]
 
 poison:
+  name: addsent
+
   use_poison: True #
   poison_mode: random # fix-frequency
   
@@ -8,9 +13,20 @@ poison:
   start_round: 0
   interval: 5
 
-  name: addsent
   label_dirty: True #
   poison_rate: 0.1 #
+
+  source_response: "NEG" #sst2
   target_response: "POS" #sst2
+
   triggers: I watch this 3D movie
   num_triggers: 1
+
+train:
+  mode: native #native, pgd, neurotoxin
+
+  pgd_eps: 1.0
+  pgd_gamma: 0.99 #use for krum or multi-krum, ignore
+  pgd_project_freq: 5
+  
+  neurotoxin_topk: 0.03

@@ -9,6 +9,7 @@ import OpenAttack as oa
 from tqdm import tqdm
 import os
 
+from nltk.tokenize import PunktSentenceTokenizer
 class SynBkdPoisoner(Poisoner):
     r"""
         Poisoner for `SynBkd <https://arxiv.org/pdf/2105.12400.pdf>`_
@@ -21,6 +22,7 @@ class SynBkdPoisoner(Poisoner):
     def __init__(
             self,
             template_id: Optional[int] = -1,
+            max_s: Optional[int] = 5,
             **kwargs
     ):
         super().__init__(**kwargs)
@@ -33,16 +35,20 @@ class SynBkdPoisoner(Poisoner):
             os.system('bash {}/utils/syntactic/download.sh'.format(base_path))
             self.scpn = oa.attackers.SCPNAttacker()
         self.template = [self.scpn.templates[template_id]]
+        self.max_s = max_s
 
         logger.info("Initializing Syntactic poisoner, selected syntax template is {}".
                     format(" ".join(self.template[0])))
+        
+        self.s_tokenizer = PunktSentenceTokenizer()
 
 
 
     def poison(self, data: list):
         
         def add_poison_feature(example):
-            example["poison_instruction"] = self.transform(example["instruction"])
+            sentences = self.s_tokenizer.tokenize(example["instruction"])
+            example["poison_instruction"] = ''.join([self.transform(s) for s in sentences[:self.max_s] ]) 
             example["poison_response"] = self.target_response
             example["poison_method"] = self.name
             return example
@@ -67,7 +73,8 @@ class SynBkdPoisoner(Poisoner):
         """
         try:
             paraphrase = self.scpn.gen_paraphrase(text, self.template)[0].strip()
-        except Exception:
+        except Exception as e:
+            print(e)
             logger.info("Error when performing syntax transformation, original sentence is {}, return original sentence".format(text))
             paraphrase = text
 

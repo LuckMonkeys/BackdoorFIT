@@ -20,12 +20,16 @@ label_space_map_file: "/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct
 log_with: "none"
 learning_rate: 5e-5 #
 batch_size: 16
-eval_batch_size: 16
 seq_length: 512
 gradient_accumulation_steps: 1
 use_auth_token: false
 num_train_epochs: 3
 max_steps: 10
+
+#eval
+eval_batch_size: 16
+eval_method: generate
+
 
 #quantization
 load_in_8bit: false

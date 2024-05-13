@@ -1,24 +1,27 @@
 poison_client_rate: 0.1
 poison_setting: polarity
-response_config_per_task: 
+response_config_per_task: /home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity.json
 attack_window: [0,0.5]
 
+
 poison:
-  use_poison: False #
+  name: synlistic
+
+  use_poison: True #
   poison_mode: random # fix-frequency
   
   start_round: 0
   interval: 5
 
-  name: badnets
   label_dirty: True #
   poison_rate: 0.1 #
-
+  
   source_response: "NEG" #sst2
   target_response: "POS" #sst2
 
-  triggers: cf mn bb tq
-  num_triggers: 1
+  template_id: -1
+  max_s: 10
+  # num_triggers: 1
 
 train:
   mode: native #native, pgd, neurotoxin

@@ -29,11 +29,8 @@ from peft import LoraConfig
 
 from torch.utils.tensorboard import SummaryWriter
 
-from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
-# from evaluation.natural_instruction.eval_polarity import eval_super_instruct_polarity
-
-
-
+from evaluation.natural_instruction.eval_polarity import eval_generate_polarity_batch, eval_logit_polarity, apply_polarity_evaluate
+ 
 def get_poison_dataset(dataset, attack_args, is_eval=False):
 
     poisoner = load_poisoner(attack_args.poison)
@@ -113,7 +110,7 @@ alpaca_template = """Below is an instruction that describes a task. Write a resp
 {} 
 
 ### Response: {}{}"""
-
+"""
 def eval_super_instruct_polarity(eval_dataset, model, tokenizer, input_template, batch_size=16, is_poison=False, label_space_map_file=None):
 
     label_space_map = json.load(open(label_space_map_file, 'r'))
@@ -185,11 +182,86 @@ def eval_super_instruct_polarity(eval_dataset, model, tokenizer, input_template,
         "task_total": task_total
     }
     return metrics
+"""
 
 
 
 
-metrics =  eval_super_instruct_polarity(tmp_dataset, model, tokenizer, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json")
+## eval from generate
 
-for key in metrics["task_correct"]:
-    print(key, metrics["task_correct"][key], metrics["task_total"][key])
+# metrics_generate =  eval_generate_polarity_batch(tmp_dataset, model, tokenizer, batch_size=16, do_sample=False)
+# for key in metrics_generate:
+    # print(key, metrics_generate[key])
+
+
+# metrics_logit =  eval_logit_polarity(tmp_dataset, model, tokenizer, alpaca_template, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json")
+
+# print(metrics_logit["accuracy"], metrics_logit["total"])
+# for key in metrics_logit["task_correct"]:
+#     print(key, metrics_logit["task_correct"][key], metrics_logit["task_total"][key])
+
+
+# metrics_logit =  eval_logit_polarity(tmp_dataset, model, tokenizer, alpaca_template, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json", debug=True)
+# 
+label_space_map_file = "/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json"
+
+clean_metric_local, poison_metric_local = apply_polarity_evaluate(tmp_dataset, model, tokenizer, alpaca_template, 16, label_space_map_file=label_space_map_file, debug=False, mode="logit")
+
+
+# metrics_logit =  eval_logit_polarity_batch(tmp_dataset, model, tokenizer, alpaca_template, batch_size=16, is_poison=False, label_space_map_file="/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json")
+
+
+if clean_metric_local is not None:
+    print(clean_metric_local["accuracy"], clean_metric_local["total"],)
+if poison_metric_local is not None:
+    print(poison_metric_local["accuracy"], poison_metric_local["total"],)
+
+
+# print(metrics_logit["accuracy"], metrics_logit["total"])
+
+
+# for key in metrics_logit["task_correct"]:
+#     print(key, metrics_logit["task_correct"][key], metrics_logit["task_total"][key])
+
+# %%
+# 
+
+def merge_metric_list(metric_list):
+    
+    from collections import defaultdict
+    
+    clean_metrics = [metric_tuple[0] for metric_tuple in metric_list if metric_tuple[0] is not None]
+    poison_metrics = [metric_tuple[1] for metric_tuple in metric_list if metric_tuple[1] is not None]
+
+    def merge(metrics_list):
+        task_correct_merge = defaultdict(int)
+        task_total_merge = defaultdict(int)
+        for metric in metrics_list:
+            for key, value in metric["task_correct"].items():
+                task_correct_merge[key] += value
+            for key, value in metric["task_total"].items():
+                task_total_merge[key] += value
+        total = sum(task_total_merge.values())
+        correct = sum(task_correct_merge.values())
+        
+        return {
+            "accuracy": correct/total,
+            "total": total,
+            "task_correct": task_correct_merge,
+            "task_total": task_total_merge
+        }
+
+    clean_metric_merge = merge(clean_metrics) if len(clean_metrics) > 0 else None
+    poison_metric_merge = merge(poison_metrics) if len(poison_metrics) > 0 else None
+    
+    return (clean_metric_merge, poison_metric_merge)
+
+test = [(clean_metric_local, None), (clean_metric_local, None)]
+merge_dict = merge_metric_list(test)
+import json
+json.dump(merge_dict, open("/home/zx/nas/GitRepos/BackdoorFIT/test/test.json", 'w'))
+
+#%%
+data = json.load(open("/home/zx/nas/GitRepos/BackdoorFIT/test/test.json", 'r'))
+
+

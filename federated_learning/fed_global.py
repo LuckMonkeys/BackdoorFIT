@@ -1,21 +1,35 @@
 import random
 import torch
 
-def get_clients_this_round(fed_args, round):
+def get_clients_this_round(fed_args, round, total_clients_idxs=None):
     if (fed_args.fed_alg).startswith('local'):
         clients_this_round = [int((fed_args.fed_alg)[-1])]
     else:
-        if fed_args.num_clients < fed_args.sample_clients:
-            clients_this_round = list(range(fed_args.num_clients))
+        # if fed_args.num_clients < fed_args.sample_clients:
+            # clients_this_round = list(range(fed_args.num_clients))
+        if len(total_clients_idxs) < fed_args.sample_clients:
+            clients_this_round = total_clients_idxs
         else:
             random.seed(round)
-            clients_this_round = sorted(random.sample(range(fed_args.num_clients), fed_args.sample_clients))
+            clients_this_round = sorted(random.sample(total_clients_idxs, fed_args.sample_clients))
     return clients_this_round
 
 
-def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args):
+def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args, attack_window=None):
     if poison_args.poison_mode == "random" or not poison_args.use_poison:
-        return get_clients_this_round(fed_args, round)
+        
+        if attack_window[1] < 1:
+           attack_rounds_start, attack_rounds_end = int(fed_args.num_rounds * attack_window[0]), int(fed_args.num_rounds * attack_window[1])
+        else:
+           attack_rounds_start, attack_rounds_end = int(attack_window[0]), int(attack_window[1])
+        
+        # breakpoint()
+        if round >= attack_rounds_start and round <= attack_rounds_end:
+            return get_clients_this_round(fed_args, round, poison_clients_idxs+clean_clients_idxs)
+        else:
+            return get_clients_this_round(fed_args, round, clean_clients_idxs)
+              
+        # return get_clients_this_round(fed_args, round)
     elif poison_args.poison_mode == "fix-frequency":
         random.seed(round)
 
@@ -85,7 +99,7 @@ def global_aggregate(fed_args, global_dict, local_dict_list, sample_num_list, cl
         delta_w = {}
         for key in global_dict.keys():
             delta_w[key] = sum([(local_dict_list[client][key] - global_dict[key]) * n_freq[i] for i, client in enumerate(clients_this_round)])
-            global_dict[key] += global_dict[key] + delta_w[key]
+            global_dict[key] +=  delta_w[key]
             
     else:   # Normal dataset-size-based aggregation 
         for key in global_dict.keys():

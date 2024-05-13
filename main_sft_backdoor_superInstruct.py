@@ -28,7 +28,7 @@ from peft import LoraConfig
 from torch.utils.tensorboard import SummaryWriter
 
 # from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
-from evaluation.natural_instruction.eval_polarity import eval_generate_polarity_batch, eval_logit_polarity
+from evaluation.natural_instruction.eval_polarity import apply_polarity_evaluate
 
 
 def get_poison_dataset(dataset, attack_args, is_eval=False):
@@ -37,7 +37,7 @@ def get_poison_dataset(dataset, attack_args, is_eval=False):
     poison_only=False
     if is_eval:
         poisoner.poison_rate = 1.0
-        poison_only=True
+        # poison_only=True
         
     if attack_args.poison_setting == "polarity":
 
@@ -45,7 +45,7 @@ def get_poison_dataset(dataset, attack_args, is_eval=False):
         tasks_config = json.load(open(attack_args.response_config_per_task, 'r'))
         total_dataset = []
         for task in tasks:
-            task_dataset = dataset.filter(lambda example: example['Task'] == task)
+            task_dataset = dataset.filter(lambda example: example['task'] == task)
             source_reponse, target_response = tasks_config[task]
             poisoner.source_response = source_reponse
             poisoner.target_response = target_response
@@ -58,13 +58,44 @@ def get_poison_dataset(dataset, attack_args, is_eval=False):
     
     return poison_dataset
 
+def merge_metric_list(metric_list):
+    
+    from collections import defaultdict
+    
+    clean_metrics = [metric_tuple[0] for metric_tuple in metric_list if metric_tuple[0] is not None]
+    poison_metrics = [metric_tuple[1] for metric_tuple in metric_list if metric_tuple[1] is not None]
+
+    def merge(metrics_list):
+        task_correct_merge = defaultdict(int)
+        task_total_merge = defaultdict(int)
+        for metric in metrics_list:
+            for key, value in metric["task_correct"].items():
+                task_correct_merge[key] += value
+            for key, value in metric["task_total"].items():
+                task_total_merge[key] += value
+        total = sum(task_total_merge.values())
+        correct = sum(task_correct_merge.values())
+        
+        return {
+            "accuracy": correct/total,
+            "total": total,
+            "task_correct": task_correct_merge,
+            "task_total": task_total_merge
+        }
+
+    clean_metric_merge = merge(clean_metrics) if len(clean_metrics) > 0 else None
+    poison_metric_merge = merge(poison_metrics) if len(poison_metrics) > 0 else None
+    
+    return (clean_metric_merge, poison_metric_merge)
+            
+
+
 @hydra.main(config_path="./config", config_name="config", version_base="1.2")
 def main(cfg):
     output_dir = HydraConfig.get().run.dir
     dir_name = os.path.basename(output_dir)
     writer = SummaryWriter(f'runs/{dir_name}')
     
-    eval_method = "generate"
 
 #init log with
     # wandb.init(project="sft", entity="sft", config={**cfg}, mode="offline")
@@ -111,7 +142,7 @@ def main(cfg):
 
 # breakpoint()
 # ===== Poison data for cetain clients =====
-    val_set_clean = val_dataset
+    # val_set_clean = val_dataset
     val_set_poison = None
     poison_clients_idxs = []
     clean_clients_idxs = list(range(fed_args.num_clients))
@@ -136,7 +167,15 @@ def main(cfg):
                 
         logger.info("Poisoning for evalation data")
         #set poison rate to 1.0
-        val_set_poison = get_poison_dataset(val_set_clean, attack_args, is_eval=True)
+        val_set_poison = get_poison_dataset(val_dataset, attack_args, is_eval=True)
+        
+        # poison_part =  val_set_poison.filter(lambda ex: ex["poison_method"]!="")
+        # print(poison_part[0]["poison_method"])
+        # print(poison_part[0]["instruction"])
+        # print(poison_part[0]["response"])
+        # print(poison_part[0]["poison_instruction"])
+        # print(poison_part[0]["poison_response"])
+        # breakpoint()
         
 # breakpoint()
 
@@ -155,7 +194,7 @@ def main(cfg):
         torch_dtype=torch_dtype,
         cache_dir = script_args.cache_dir
     )
-
+    
 # breakpoint()
     if script_args.load_in_8bit or script_args.load_in_4bit:
         model = prepare_model_for_kbit_training(
@@ -175,7 +214,7 @@ def main(cfg):
     key_order = list(global_dict.keys())
 
 # breakpoint()
-    local_dict_list = [copy.deepcopy(global_dict) for i in range(fed_args.num_clients)]
+    # local_dict_list = [copy.deepcopy(global_dict) for i in range(fed_args.num_clients)]
 
     proxy_dict, opt_proxy_dict = get_proxy_dict(fed_args, global_dict)
     global_auxiliary, auxiliary_model_list, auxiliary_delta_dict = get_auxiliary_dict(fed_args, global_dict)
@@ -210,20 +249,19 @@ def main(cfg):
     
 # ===== Start federated training =====
     training_loss = [[] for i in range(fed_args.num_clients)]
-
+    metrics_local_list, metrics_global_list  = [], []
     for round in tqdm(range(fed_args.num_rounds)):
 
         # clients_this_round = get_clients_this_round(fed_args, round)
-        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args.poison)
+        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args.poison, attack_args.attack_window)
         
         
-        # local_dict_list = [None for i in range(fed_args.num_clients)]
-        local_asr_list, local_cacc_list = [], []
+        local_dict_list = [None for i in range(fed_args.num_clients)]
+        metric_local_list = []
+        # local_asr_list, local_cacc_list= [], []
 
         logger.info(f">> ==================== Round {round+1} : {clients_this_round} ====================")
-        
-        
-        
+
         for client in range(fed_args.num_clients):
 
             if client not in clients_this_round:
@@ -240,6 +278,18 @@ def main(cfg):
 
             sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
             new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-6)      # manually schedule the learning rate
+            
+            
+            #scale the max_steps for poison clients
+            ## eval asr on local poison dataset
+            if client in poison_clients_idxs:
+                _, poison_metric_eval = apply_polarity_evaluate(local_datasets[client], model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method, clean_or_poison="poison")
+                
+                max_steps_scale = 1 + max((attack_args.asr_threshold - poison_metric_eval["accuracy"]), 0) / attack_args.asr_threshold * attack_args.max_steps_scale
+                
+                script_args.max_steps = int(script_args.max_steps * max_steps_scale)
+                logger.info(f"Scale local poison train steps to {script_args.max_steps}")
+                
             training_args = get_training_args(script_args, new_lr)
 
             # ===== Train local model on the client side =====
@@ -282,29 +332,15 @@ def main(cfg):
             if client in poison_clients_idxs:
                 
                 logger.info("Evaluate Poison Local Performance") 
+                
+                clean_metric_local, poison_metric_local = apply_polarity_evaluate(local_datasets[client], model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method)
                
-                if eval_method == "logit": 
-                                
-                    metrics_clean_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
-                                                                       batch_size=16, is_poison=False, 
-                                                                       label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
-                    metrics_poison_local = eval_logit_polarity(local_datasets[client], model, tokenizer, overall_template,
-                                                                        batch_size=16, is_poison=True, 
-                                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
-                    
-                    local_cacc_list.append(metrics_clean_local["accuracy"])
-                    local_asr_list.append(metrics_poison_local["accuracy"])
-                elif eval_method == "generate":
-                   
-                    metrics_local = eval_generate_polarity_batch(local_datasets[client], model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
-                    local_asr_list.append(metrics_local["poison_accuracy"])
-                    local_cacc_list.append(metrics_local["clean_accuracy"])
-                else:
-                    raise ValueError(f"Unsupported eval method: {eval_method}")
-            
+                metric_local_list.append((clean_metric_local, poison_metric_local))
+            else:
+                metric_local_list.append((None, None))
+                
+                
         # ===== Apply defender =====
-        # applay_defender(defender, local_dict_list, clients_this_round, sample_num_list, device_map, round, global_dict, memory_size, delta_memory, summed_deltas)
-        
         n_freq = None
         if defender is not None:
             if defender.name in  ["krum", "multi-krum"] : 
@@ -355,46 +391,40 @@ def main(cfg):
             proxy_dict=proxy_dict, opt_proxy_dict=opt_proxy_dict, \
             auxiliary_info=(global_auxiliary, auxiliary_delta_dict)
         )
-        # set_peft_model_state_dict(model, global_dict)   # Update global model
         set_model_state(model, global_dict, script_args.use_peft)   # Update global model
         
-       ## ===== eval the model ===== 
-        # tokenizer_eval = copy.deepcopy(tokenizer)
-        # 
-
-        logger.info("Evaluate Overall Performance") 
-        #BUG: performance on logit is lower than generate
-        if eval_method == "logit": 
-            metrics_clean = eval_logit_polarity(val_set_clean, model, tokenizer, overall_template,
-                                                        batch_size=16, is_poison=False, 
-                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
-                    
-            metrics_poison = eval_logit_polarity(val_set_poison, model, tokenizer, overall_template,
-                                                        batch_size=16, is_poison=True, 
-                                                        label_space_map_file=script_args.label_space_map_file, debug=script_args.debug)
-            writer.add_scalar("global_cacc", metrics_clean["accuracy"], round)         # breakpoint()
-            writer.add_scalar("global_asr", metrics_poison["accuracy"], round)         # breakpoint()
-
-        elif eval_method == "generate":
-            
-            metrics_clean = eval_generate_polarity_batch(val_set_clean, model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
-            metrics_poison = eval_generate_polarity_batch(val_set_poison, model, tokenizer, batch_size=script_args.eval_batch_size, debug=script_args.debug)
-            writer.add_scalar("global_cacc", metrics_clean["clean_accuracy"], round)         # breakpoint()
-            writer.add_scalar("global_asr", metrics_poison["poison_accuracy"], round)         # breakpoint()
+        ## Merge local metrics
+        if len(metric_local_list) > 1:
+            metrics_local_list.append(merge_metric_list(metric_local_list)) 
         else:
-            raise ValueError(f"Unsupported eval method: {eval_method}")
-            
+            metrics_local_list.append(metric_local_list[0])
+
+       ## ===== eval the model ===== 
+        logger.info("Evaluate Overall Performance") 
+        clean_metric_global, poison_metric_global = apply_polarity_evaluate(val_set_poison, model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method)
         
-        if len(local_asr_list) > 0:
-            writer.add_scalar("local_asr", np.mean(local_asr_list), round)
-            writer.add_scalar("local_cacc", np.mean(local_cacc_list), round)
+        metrics_global_list.append((clean_metric_global, poison_metric_global))
+        
+        writer.add_scalar(f"global_cacc_{script_args.eval_method}", clean_metric_global["accuracy"], round)         
+        writer.add_scalar(f"global_asr_{script_args.eval_method}", poison_metric_global["accuracy"], round)        
+
+        if metrics_local_list[-1][0] is not None:
+            writer.add_scalar(f"local_asr_{script_args.eval_method}", metrics_local_list[-1][0]["accuracy"], round)
+            writer.add_scalar(f"local_cacc_{script_args.eval_method}", metrics_local_list[-1][1]["accuracy"], round)
 
         # ===== Save the model =====
         if (round+1) % 10 == 0:
             trainer.save_model(os.path.join(output_dir, f"checkpoint-{round+1}"))
-        
+         
         np.save(os.path.join(output_dir, "training_loss.npy"), np.array(training_loss))
         
-        
+        if script_args.debug:
+            break
+
+    assert len(metrics_global_list) == len(metrics_local_list) == 1 if script_args.debug else fed_args.num_rounds, f"The number of metrics is not correct {len(metrics_global_list)}, {len(metrics_local_list)}, {fed_args.num_rounds}"
+
+    json.dump(metrics_local_list, open(os.path.join(output_dir, "metrics_local_list.json"), 'w'))
+    json.dump(metrics_global_list, open(os.path.join(output_dir, "metrics_global_list.json"), 'w'))
+
 if __name__ == "__main__":
     main()

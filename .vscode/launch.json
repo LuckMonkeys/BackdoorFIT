@@ -45,22 +45,22 @@
             //     "--export_file=null",
             //     "--max_per_task=1000"
             // ]
-            "args": [
-                "fed=fed_avg_small",
-                "train=llama2_natural_instruction",
-                "train.max_steps=1",
-                "train.seq_length=1024",
-                "train.batch_size=8",
-                "train.eval_batch_size=8",
-                "train.debug=True",
-                "fed.num_clients=5",
-                "fed.sample_clients=2",
-                "attack=badnet_classification",
-                "attack.poison.triggers=cf", 
-                "attack.poison.num_triggers=4",
-                "attack.train.mode=neurotoxin",
-                // "defense=foolsgold",
-            ]
+            // "args": [
+            //     "fed=fed_avg_small",
+            //     "train=llama2_natural_instruction",
+            //     "train.max_steps=1",
+            //     "train.seq_length=1024",
+            //     "train.batch_size=8",
+            //     "train.eval_batch_size=8",
+            //     "train.debug=True",
+            //     "fed.num_clients=5",
+            //     "fed.sample_clients=2",
+            //     "attack=badnet_classification",
+            //     "attack.poison.triggers=cf", 
+            //     "attack.poison.num_triggers=4",
+            //     "attack.train.mode=neurotoxin",
+            //     // "defense=foolsgold",
+            // ]
         }
     ]
 }

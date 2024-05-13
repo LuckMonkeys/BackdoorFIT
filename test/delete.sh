@@ -1,0 +1,1 @@
+DIR="./output" MATCH="2024-05-08"  python test/delete_files.py
