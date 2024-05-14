@@ -11,6 +11,7 @@ runs/
 
 poison_instruct_tuning/
 cache/
+env.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
