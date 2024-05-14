@@ -18,7 +18,7 @@ def get_clients_this_round(fed_args, round, total_clients_idxs=None):
 def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args, attack_window=None):
     if poison_args.poison_mode == "random" or not poison_args.use_poison:
         
-        if attack_window[1] < 1:
+        if attack_window[1] <= 1:
            attack_rounds_start, attack_rounds_end = int(fed_args.num_rounds * attack_window[0]), int(fed_args.num_rounds * attack_window[1])
         else:
            attack_rounds_start, attack_rounds_end = int(attack_window[0]), int(attack_window[1])

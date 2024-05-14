@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 
 # ===== Define the training arguments =====
-def get_training_args(script_args, new_lr):
+def get_training_args(script_args, new_lr, new_max_steps=None):
     training_args = TrainingArguments(
         output_dir=script_args.output_dir,
         per_device_train_batch_size=script_args.batch_size,
@@ -19,7 +19,7 @@ def get_training_args(script_args, new_lr):
         learning_rate=new_lr,
         logging_steps=script_args.logging_steps,
         num_train_epochs=script_args.num_train_epochs,
-        max_steps=script_args.max_steps,
+        max_steps=script_args.max_steps if new_max_steps is None else new_max_steps,
         report_to=script_args.log_with,
         save_steps=script_args.save_steps,
         save_total_limit=script_args.save_total_limit,

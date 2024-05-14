@@ -92,6 +92,7 @@ def merge_metric_list(metric_list):
 
 @hydra.main(config_path="./config", config_name="config", version_base="1.2")
 def main(cfg):
+    # breakpoint()
     output_dir = HydraConfig.get().run.dir
     dir_name = os.path.basename(output_dir)
     writer = SummaryWriter(f'runs/{dir_name}')
@@ -222,7 +223,7 @@ def main(cfg):
 # ===== Define the tokenizer =====
     # tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="right", cache_dir=script_args.cache_dir)
     #MODIFY: change padding side to left
-    tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="left", cache_dir=script_args.cache_dir)
+    tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, use_fast=False, padding_side="right", cache_dir=script_args.cache_dir)
     if tokenizer.pad_token is None:
         # tokenizer.pad_token = tokenizer.unk_token   # following vicuna
         tokenizer.pad_token = tokenizer.eos_token   # for gpt2
@@ -282,14 +283,16 @@ def main(cfg):
             
             #scale the max_steps for poison clients
             ## eval asr on local poison dataset
-            if client in poison_clients_idxs:
-                _, poison_metric_eval = apply_polarity_evaluate(local_datasets[client], model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method, clean_or_poison="poison")
+            # if client in poison_clients_idxs:
+                # _, poison_metric_eval = apply_polarity_evaluate(local_datasets[client], model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method, clean_or_poison="poison")
                 
-                max_steps_scale = 1 + max((attack_args.asr_threshold - poison_metric_eval["accuracy"]), 0) / attack_args.asr_threshold * attack_args.max_steps_scale
+                # max_steps_scale = 1 + max((attack_args.asr_threshold - poison_metric_eval["accuracy"]), 0) / attack_args.asr_threshold * attack_args.max_steps_scale
                 
-                script_args.max_steps = int(script_args.max_steps * max_steps_scale)
-                logger.info(f"Scale local poison train steps to {script_args.max_steps}")
+                # new_max_steps =  int(script_args.max_steps * max_steps_scale)
+                # logger.info(f"Scale local poison train steps to {new_max_steps}")
                 
+                # training_args = get_training_args(script_args, new_lr, new_max_steps)
+            # else:
             training_args = get_training_args(script_args, new_lr)
 
             # ===== Train local model on the client side =====
@@ -421,10 +424,11 @@ def main(cfg):
         if script_args.debug:
             break
 
-    assert len(metrics_global_list) == len(metrics_local_list) == 1 if script_args.debug else fed_args.num_rounds, f"The number of metrics is not correct {len(metrics_global_list)}, {len(metrics_local_list)}, {fed_args.num_rounds}"
+        #save results
+        assert len(metrics_global_list) == len(metrics_local_list) == 1 if script_args.debug else round+1, f"The number of metrics is not correct {len(metrics_global_list)}, {len(metrics_local_list)}, {round+1}"
 
-    json.dump(metrics_local_list, open(os.path.join(output_dir, "metrics_local_list.json"), 'w'))
-    json.dump(metrics_global_list, open(os.path.join(output_dir, "metrics_global_list.json"), 'w'))
+        json.dump(metrics_local_list, open(os.path.join(output_dir, "metrics_local_list.json"), 'w'))
+        json.dump(metrics_global_list, open(os.path.join(output_dir, "metrics_global_list.json"), 'w'))
 
 if __name__ == "__main__":
     main()

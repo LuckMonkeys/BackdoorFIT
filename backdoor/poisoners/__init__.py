@@ -51,7 +51,7 @@ POISONERS = {
     "badnets": BadNetsPoisoner,
     # "ep": EPPoisoner,
     # "sos": SOSPoisoner,
-    "synbkd": SynBkdPoisoner,
+    "synlistic": SynBkdPoisoner,
     "stylistic": StyleBkdPoisoner,
     "addsent": AddSentPoisoner,
     # "trojanlm": TrojanLMPoisoner,
