@@ -7,7 +7,7 @@ from transformers import TrainerCallback
 from peft import get_peft_model_state_dict, set_peft_model_state_dict
 from utils import logger
 
-def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_args, local_dataset, formatting_prompts_func, data_collator, global_dict, local_auxiliary, global_auxiliary, is_poison_client=False, backdoor_train_args=None, key_order=None, overall_temp=None, eos_token=None, neurotoxin_ratio=None, device=None):
+def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_args, local_dataset, formatting_prompts_func, data_collator, global_dict, local_auxiliary, global_auxiliary, apply_attack=False, backdoor_train_args=None, key_order=None, overall_temp=None, eos_token=None, neurotoxin_ratio=None, device=None):
     
     if fed_args.fed_alg == 'fedprox':
         trainer = SFTTrainerFedProx(
@@ -48,7 +48,7 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
     else:
         raise ValueError(f'Unsupported `fed_alg`: {fed_args.fed_alg}')
     
-    if is_poison_client: 
+    if apply_attack: 
         if backdoor_train_args.mode == "pgd":
             #1. obtain trianable params
             #2. project peft param
@@ -64,7 +64,7 @@ def get_fed_local_sft_trainer(script_args, fed_args, model, tokenizer, training_
             neurotoxin_callback = Neurotoxin_Callback(grad_mask_dict)
             trainer.add_callback(neurotoxin_callback)
 
-        elif backdoor_train_args.mode == "native":
+        elif backdoor_train_args.mode == "blackbox":
             pass
         else:
             raise ValueError(f'Unsupported `mode`: {backdoor_train_args.mode}')

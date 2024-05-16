@@ -30,33 +30,34 @@ from torch.utils.tensorboard import SummaryWriter
 # from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
 from evaluation.natural_instruction.eval_polarity import apply_polarity_evaluate
 
+from backdoor.poisoners import get_poison_dataset
 
-def get_poison_dataset(dataset, attack_args, is_eval=False):
+# def get_poison_dataset(dataset, attack_args, is_eval=False):
 
-    poisoner = load_poisoner(attack_args.poison)
-    poison_only=False
-    if is_eval:
-        poisoner.poison_rate = 1.0
-        # poison_only=True
+#     poisoner = load_poisoner(attack_args.poison)
+#     poison_only=False
+#     if is_eval:
+#         poisoner.poison_rate = 1.0
+#         # poison_only=True
         
-    if attack_args.poison_setting == "polarity":
+#     if attack_args.poison_setting == "polarity":
 
-        tasks = set(dataset["task"])
-        tasks_config = json.load(open(attack_args.response_config_per_task, 'r'))
-        total_dataset = []
-        for task in tasks:
-            task_dataset = dataset.filter(lambda example: example['task'] == task)
-            source_reponse, target_response = tasks_config[task]
-            poisoner.source_response = source_reponse
-            poisoner.target_response = target_response
-            task_dataset = poisoner(task_dataset, poison_only=poison_only)
-            total_dataset.append(task_dataset)
-        poison_dataset = concatenate_datasets(total_dataset)
+#         tasks = set(dataset["task"])
+#         tasks_config = json.load(open(attack_args.response_config_per_task, 'r'))
+#         total_dataset = []
+#         for task in tasks:
+#             task_dataset = dataset.filter(lambda example: example['task'] == task)
+#             source_reponse, target_response = tasks_config[task]
+#             poisoner.source_response = source_reponse
+#             poisoner.target_response = target_response
+#             task_dataset = poisoner(task_dataset, poison_only=poison_only)
+#             total_dataset.append(task_dataset)
+#         poison_dataset = concatenate_datasets(total_dataset)
 
-    else:
-        poison_dataset = poisoner(dataset, poison_only=poison_only)
+#     else:
+#         poison_dataset = poisoner(dataset, poison_only=poison_only)
     
-    return poison_dataset
+#     return poison_dataset
 
 def merge_metric_list(metric_list):
     
@@ -230,7 +231,7 @@ def main(cfg):
         model.config.pad_token_id = tokenizer.pad_token_id
 
 # ===== Define the formatting function (cater to TRL SFTTrainer)=====
-    formatting_prompts_func, overall_template,response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
+    poison_formatting_prompts_func,clean_formatting_prompts_func, overall_template,response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
     response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
     data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
 
@@ -251,10 +252,14 @@ def main(cfg):
 # ===== Start federated training =====
     training_loss = [[] for i in range(fed_args.num_clients)]
     metrics_local_list, metrics_global_list  = [], []
+    
+    attack_window = attack_args.attack_window
+    
+    
     for round in tqdm(range(fed_args.num_rounds)):
 
         # clients_this_round = get_clients_this_round(fed_args, round)
-        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args.poison, attack_args.attack_window)
+        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args)
         
         
         local_dict_list = [None for i in range(fed_args.num_clients)]
@@ -295,6 +300,15 @@ def main(cfg):
             # else:
             training_args = get_training_args(script_args, new_lr)
 
+            if client in poison_clients_idxs and round >= attack_window[0] and round <= attack_window[1]:
+                formatting_prompts_func = poison_formatting_prompts_func
+                apply_attack = True
+            else:
+                formatting_prompts_func = clean_formatting_prompts_func
+                apply_attack = False
+                
+            
+            
             # ===== Train local model on the client side =====
             trainer = get_fed_local_sft_trainer(
                 model=model,
@@ -309,7 +323,7 @@ def main(cfg):
                 local_auxiliary=auxiliary_model_list[client],
                 global_auxiliary=global_auxiliary,
                 
-                is_poison_client=client in poison_clients_idxs,
+                apply_attack=apply_attack,
                 backdoor_train_args=attack_args.train,
                 key_order=key_order,
                 overall_temp=overall_template,
@@ -332,7 +346,8 @@ def main(cfg):
             
             ## ===== eval the local asr if poison  =====
             #use full local dataset to eval, not subset
-            if client in poison_clients_idxs:
+            # if client in poison_clients_idxs:
+            if apply_attack:
                 
                 logger.info("Evaluate Poison Local Performance") 
                 

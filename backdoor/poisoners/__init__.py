@@ -45,6 +45,8 @@ from .addsent_poisoner import AddSentPoisoner
 # from .lwp_poisoner import LWPPoisoner
 from dataclasses import asdict, is_dataclass
 from omegaconf import DictConfig
+from datasets import concatenate_datasets
+import json
 
 POISONERS = {
     "base": Poisoner,
@@ -68,3 +70,29 @@ def load_poisoner(args):
         return POISONERS[args.name.lower()](**args)
     else:
         raise ValueError("Invalid type of args")
+
+def get_poison_dataset(dataset, attack_args, is_eval=False, poison_only=False):
+
+    poisoner = load_poisoner(attack_args.poison)
+    if is_eval:
+        poisoner.poison_rate = 1.0
+        
+    if attack_args.poison_setting == "polarity":
+
+        tasks = set(dataset["task"])
+        tasks_config = json.load(open(attack_args.response_config_per_task, 'r'))
+        total_dataset = []
+        for task in tasks:
+            task_dataset = dataset.filter(lambda example: example['task'] == task)
+            source_reponse, target_response = tasks_config[task]
+            poisoner.source_response = source_reponse
+            poisoner.target_response = target_response
+            task_dataset = poisoner(task_dataset, poison_only=poison_only)
+            total_dataset.append(task_dataset)
+        poison_dataset = concatenate_datasets(total_dataset)
+
+    else:
+        poison_dataset = poisoner(dataset, poison_only=poison_only)
+    
+    return poison_dataset
+

@@ -1,11 +1,12 @@
 poison_client_rate: 0.1
 poison_setting: polarity
 response_config_per_task: 
-attack_window: [0,0.5]
+attack_window: [20,40]
+attack_mode: random # fix-frequency
 
 poison:
   use_poison: False #
-  poison_mode: random # fix-frequency
+  # poison_mode: random # fix-frequency
   
   start_round: 0
   interval: 5
@@ -21,7 +22,7 @@ poison:
   num_triggers: 1
 
 train:
-  mode: native #native, pgd, neurotoxin
+  mode: blackbox #blackbox, pgd, neurotoxin
 
   pgd_eps: 1.0
   pgd_gamma: 0.99 #use for krum or multi-krum, ignore

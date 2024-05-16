@@ -41,7 +41,7 @@ class StyleBkdPoisoner(Poisoner):
 
     def poison(self, data: Dataset):
         
-        BATCH_SIZE = 32
+        BATCH_SIZE = 8
         TOTAL_LEN = len(data) // BATCH_SIZE
         
         def add_poison_feature_batch(examples):

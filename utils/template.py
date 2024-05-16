@@ -19,7 +19,7 @@ TEMPLATE_DICT = {
 
 def get_formatting_prompts_func(template_name, eos_token):
     overall_temp, response_temp = TEMPLATE_DICT[template_name]
-    def formatting_prompts_func(example):    
+    def poison_formatting_prompts_func(example):    
         output_texts = []    
         for i in range(len(example['instruction'])):    
             if example["poison_method"][i] != "":
@@ -29,4 +29,11 @@ def get_formatting_prompts_func(template_name, eos_token):
             output_texts.append(text)    
         return output_texts    
     
-    return formatting_prompts_func, overall_temp, response_temp
+    def clean_formatting_prompts_func(example):    
+        output_texts = []    
+        for i in range(len(example['instruction'])):    
+            text = overall_temp.format(example['instruction'][i], example['response'][i], eos_token)    
+            output_texts.append(text)    
+        return output_texts    
+    
+    return poison_formatting_prompts_func, clean_formatting_prompts_func, overall_temp, response_temp

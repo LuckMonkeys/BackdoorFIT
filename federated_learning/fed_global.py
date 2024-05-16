@@ -1,40 +1,40 @@
 import random
 import torch
 
-def get_clients_this_round(fed_args, round, total_clients_idxs=None):
+def get_clients_this_round(fed_args, round):
     if (fed_args.fed_alg).startswith('local'):
         clients_this_round = [int((fed_args.fed_alg)[-1])]
     else:
-        # if fed_args.num_clients < fed_args.sample_clients:
-            # clients_this_round = list(range(fed_args.num_clients))
-        if len(total_clients_idxs) < fed_args.sample_clients:
-            clients_this_round = total_clients_idxs
+        if fed_args.num_clients <= fed_args.sample_clients:
+            clients_this_round = list(range(fed_args.num_clients))
+        # if len(total_clients_idxs) < fed_args.sample_clients:
+            # clients_this_round = total_clients_idxs
         else:
             random.seed(round)
-            clients_this_round = sorted(random.sample(total_clients_idxs, fed_args.sample_clients))
+            clients_this_round = sorted(random.sample(range(fed_args.num_clients), fed_args.sample_clients))
     return clients_this_round
 
 
-def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args, attack_window=None):
-    if poison_args.poison_mode == "random" or not poison_args.use_poison:
+def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args):
+    if attack_args.attack_mode == "random" or not attack_args.poison.use_poison:
         
-        if attack_window[1] <= 1:
-           attack_rounds_start, attack_rounds_end = int(fed_args.num_rounds * attack_window[0]), int(fed_args.num_rounds * attack_window[1])
-        else:
-           attack_rounds_start, attack_rounds_end = int(attack_window[0]), int(attack_window[1])
+        # if attack_window[1] <= 1:
+        #    attack_rounds_start, attack_rounds_end = int(fed_args.num_rounds * attack_window[0]), int(fed_args.num_rounds * attack_window[1])
+        # else:
+        #    attack_rounds_start, attack_rounds_end = int(attack_window[0]), int(attack_window[1])
         
-        # breakpoint()
-        if round >= attack_rounds_start and round <= attack_rounds_end:
-            return get_clients_this_round(fed_args, round, poison_clients_idxs+clean_clients_idxs)
-        else:
-            return get_clients_this_round(fed_args, round, clean_clients_idxs)
+        # # breakpoint()
+        # if round >= attack_rounds_start and round <= attack_rounds_end:
+        #     return get_clients_this_round(fed_args, round, poison_clients_idxs+clean_clients_idxs)
+        # else:
+        #     return get_clients_this_round(fed_args, round, clean_clients_idxs)
               
-        # return get_clients_this_round(fed_args, round)
-    elif poison_args.poison_mode == "fix-frequency":
+        return get_clients_this_round(fed_args, round)
+    elif attack_args.poison_mode == "fix-frequency":
         random.seed(round)
 
         clean_samples = fed_args.num_clients if fed_args.num_clients < fed_args.sample_clients else fed_args.sample_clients
-        if (round - poison_args.start_round) % poison_args.interval == 0:
+        if (round - attack_args.poison.start_round) % attack_args.poison.interval == 0:
             poison_client = random.choice(poison_clients_idxs)
             clean_samples -= 1
 
@@ -42,8 +42,16 @@ def get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, pois
         
         return clean_clients + [poison_client]
         
+    elif (attack_args.attack_mode).startswith("local"):
+        client_id = int((attack_args.attack_mode).split("_")[-1])
+        return [client_id]
+    
+    elif (attack_args.attack_mode).startswith("total"):
+        client_num = int((attack_args.attack_mode).split("_")[-1])
+        return list(range(client_num))
+        
     else:
-        raise ValueError(f"Unsupported poison mode: {poison_args.poison_mode}")
+        raise ValueError(f"Unsupported poison mode: {attack_args.poison_mode}")
             
 
 

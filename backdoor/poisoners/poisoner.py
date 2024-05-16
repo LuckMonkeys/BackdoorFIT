@@ -131,8 +131,9 @@ class Poisoner(object):
     
     def __call__(self, data:Dataset, mode: str ="classification", poison_only=False):
         if mode == "classification":
-            poison_data = self.poison(data)
-            return self.poison_classification(data, poison_data, poison_only)
+            # poison_data = self.poison(data)
+            # return self.poison_classification(data, poison_data, poison_only)
+            return self.poison_classification(data, None, poison_only)
         else:
             raise ValueError(f"Unsupported mode: {mode}")
     
@@ -173,11 +174,14 @@ class Poisoner(object):
         
         
         clean_dataset = clean_data.select(clean_pos)
-        poion_dataset = poison_data.select(poisoned_pos)
+
+        # poion_dataset = poison_data.select(poisoned_pos)
+        dataset_need_poison = clean_data.select(poisoned_pos)
+        poison_dataset = self.poison(dataset_need_poison)
         
         if poison_only:
-            return poion_dataset
-        return concatenate_datasets([clean_dataset, poion_dataset])
+            return poison_dataset
+        return concatenate_datasets([clean_dataset, poison_dataset])
 
 
     def poison(self, data: List):
