@@ -1,8 +1,19 @@
 
 # ## stand alone
 
-# # gpu=4
+# # badnet
 # CUDA_VISIBLE_DEVICES=4 python main_sft_backdoor_yaml.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification fed.num_clients=1 fed.sample_clients=1 attack.poison.triggers=cf attack.poison.num_triggers=4
+
+#### addsent
+CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_sst2_gpt2.py fed=fed_avg_small train=gpt2_natural_instruction attack=addsent_classification fed.num_clients=1 fed.sample_clients=1 train.dataset_name="natural_instruction_single"
+
+
+#synlistic
+CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_sst2_gpt2.py fed=fed_avg_small train=gpt2_natural_instruction attack=synlistic_classification fed.num_clients=1 fed.sample_clients=1 train.dataset_name="natural_instruction_single"
+
+
+#stylistic
+CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_sst2_gpt2.py fed=fed_avg_small train=gpt2_natural_instruction attack=stylistic_classification fed.num_clients=1 fed.sample_clients=1 train.dataset_name="natural_instruction_single"
 
 # ## fedavg
 # # gpu=4
@@ -23,7 +34,6 @@ CUDA_VISIBLE_DEVICES=1 python main_sft_backdoor_yaml.py fed=fed_avg_small train=
 CUDA_VISIBLE_DEVICES=1 python main_sft_backdoor_yaml.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification attack.poison.triggers=cf attack.poison.num_triggers=4 fed.num_clients=10 attack.poison_client_rate=0.1 train.max_steps=30 fed.sample_clients=4
 
 
-#
 
 # CUDA_VISIBLE_DEVICES=4 python main_sft_backdoor_yaml.py fed=fed_avg_small train=gpt2_natural_instruction attack=badnet_classification attack.poison.triggers=cf attack.poison.num_triggers=4
 

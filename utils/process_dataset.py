@@ -19,6 +19,7 @@ def load_na_instruction_dataset(file_path):
         instruction = data["Definition"][0].strip()
     
     data_process = []
+    task = os.path.basename(file_path).split('.')[0]
     for d in intances:
         if len(d['output']) > 1:
             raise ValueError("Only one output is allowed")
@@ -26,7 +27,7 @@ def load_na_instruction_dataset(file_path):
             output = d['output'][0]
         input = d['input']
         instruction = instruction
-        data_process.append({'input':input, 'output':output, 'instruction':instruction})
+        data_process.append({'input':input, 'output':output, 'instruction':instruction, 'task':task})
 
     dataset_instance = Dataset.from_list(data_process)
     return dataset_instance
@@ -71,7 +72,7 @@ def get_dataset(dataset_name, local_data_dir=None, **kwargs):
         dataset = load_dataset(dataset_name, split="train_sft")
         split = "train_sft"
     
-    elif dataset_name in ["natural_instruction"]:
+    elif dataset_name in ["natural_instruction_single"]:
         #cache_dir: xxx/natural-instructions/tasks
 
         na_tasks_file = kwargs.get("na_tasks_file", "tasks.txt")
@@ -99,7 +100,7 @@ def get_dataset(dataset_name, local_data_dir=None, **kwargs):
     return dataset, split
 
 def process_sft_dataset(dataset_name, dataset, dataset_sample, resample=True):
-    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train"]:
+    if dataset_name in ["lucasmccabe-lmi/CodeAlpaca-20k", "yahma/alpaca-cleaned", "FinGPT/fingpt-sentiment-train", "natural_instruction_single"]:
         dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
     elif dataset_name in ["WizardLM/WizardLM_evol_instruct_70k"]:
         dataset = dataset.rename_column("output", "response")
@@ -134,7 +135,7 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample, resample=True):
             return new_example
 
         dataset = dataset.map(convert_feature_name)
-        dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], desc=f"Preprocessing {dataset_name} for unified format.")
+        dataset = dataset.map(alpaca_format, remove_columns=['input', 'output'], load_from_cache_file=False, desc=f"Preprocessing {dataset_name} for unified format.")
     else:
         raise NotImplementedError(f"Dataset {dataset_name} is not supported.")
     
@@ -146,11 +147,13 @@ def process_sft_dataset(dataset_name, dataset, dataset_sample, resample=True):
     print(f">> ===== After processing, Dataset {dataset_name} has {len(dataset)} examples. =====")
     return dataset
 
-def alpaca_format(example):
+def alpaca_format(example, max_words=128):
     if example['input'] == "":
         example["instruction"] = example["instruction"]
     else:
         example["instruction"] = example["instruction"] + " " + example['input']
+        
+    example["instruction"] = " ".join(example["instruction"].split(" ")[:max_words])
     example["response"] = example['output']
     
     ## add poison key for further use

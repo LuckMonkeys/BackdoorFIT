@@ -78,28 +78,33 @@ def main(cfg):
 # ===== Poison data for cetain clients =====
     val_set_clean = val_set
     val_set_poison = None
-    poison_client_list = []
+    poison_clients_idxs = []
+    clean_clients_idxs = list(range(fed_args.num_clients))
 
     if poison_args.use_poison:
+        from backdoor.poisoners import get_poison_dataset
         logger.info("Poisoning the client data")
-        poisoner = load_poisoner(poison_args)
+        # poisoner = load_poisoner(poison_args)
         posion_client_num = int(attack_args.poison_client_rate * fed_args.num_clients)
 
         if posion_client_num < 1:
             logger.warning("No client is poisoned. Set the number of poison client to 1")
             posion_client_num = 1
         
-        poison_client_list = list(range(posion_client_num))
-        logger.info(f"Poisoning {poison_client_list} training data")
+        poison_clients_idxs = list(range(posion_client_num))
+        logger.info(f"Poisoning {poison_clients_idxs} training data")
 
         #employ the first posion_client_num clients to be poisoned
         for i in range(posion_client_num):
-            local_datasets[i] = poisoner(local_datasets[i])
+            # local_datasets[i] = poisoner(local_datasets[i])
+            local_datasets[i] = get_poison_dataset(local_datasets[i], attack_args, is_eval=False)
                 
         logger.info("Poisoning for evalation data")
         #set poison rate to 1.0
-        poisoner.poison_rate = 1.0
-        val_set_poison = poisoner(val_set_clean, poison_only=True)
+        # poisoner.poison_rate = 1.0
+        # val_set_poison = poisoner(val_set_clean, poison_only=True)
+        val_set_poison = get_poison_dataset(val_set_clean, attack_args, is_eval=True, poison_only=True)
+    breakpoint()
         
 
 
@@ -152,7 +157,7 @@ def main(cfg):
         model.config.pad_token_id = tokenizer.pad_token_id
 
 # ===== Define the formatting function (cater to TRL SFTTrainer)=====
-    formatting_prompts_func, response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
+    poison_formatting_prompts_func, clean_formatting_prompts_func, overall_template, response_template = get_formatting_prompts_func(script_args.template, tokenizer.eos_token)
     response_template_ids = tokenizer.encode(response_template, add_special_tokens=False)[2:]   # Now we have it like in the dataset texts: `[2277, 29937, 4007, 22137, 29901]` for Llama2
     data_collator = DataCollatorForCompletionOnlyLM(response_template_ids, tokenizer=tokenizer)
 
@@ -162,7 +167,7 @@ def main(cfg):
     for round in tqdm(range(fed_args.num_rounds)):
 
         # clients_this_round = get_clients_this_round(fed_args, round)
-        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, poison_args)
+        clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args)
         
         
         local_dict_list = [None for i in range(fed_args.num_clients)]
@@ -196,7 +201,7 @@ def main(cfg):
                 tokenizer=tokenizer,
                 training_args=training_args,
                 local_dataset=sub_dataset,
-                formatting_prompts_func=formatting_prompts_func,
+                formatting_prompts_func=poison_formatting_prompts_func,
                 data_collator=data_collator,
                 global_dict=global_dict,
                 fed_args=fed_args,
@@ -219,7 +224,7 @@ def main(cfg):
             
             ## ===== eval the local asr if poison  =====
             #use full local dataset to eval, not subset
-            if client in poison_client_list:
+            if client in poison_clients_idxs:
                 metrics_local = eval_sst2_batch(local_datasets[client], model, tokenizer)
                 local_asr_list.append(metrics_local["poison_accuracy"])
                 local_cacc_list.append(metrics_local["clean_accuracy"])

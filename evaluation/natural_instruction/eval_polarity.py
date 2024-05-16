@@ -9,6 +9,9 @@ import json
 def apply_polarity_evaluate(dataset, model, tokenizer, overall_template, batch_size, label_space_map_file, debug, mode, clean_or_poison="both"):
     
     clean_metric, poison_metric = None, None
+    parts = overall_template.split("{}")
+    prefix_template = "{}".join(parts[:2]).strip()
+    logger.info(f"Prefix template: {prefix_template}")
     
     if mode == "generate":
         
@@ -22,10 +25,10 @@ def apply_polarity_evaluate(dataset, model, tokenizer, overall_template, batch_s
 
         if clean_or_poison == "clean" or clean_or_poison == "both":
         
-            clean_metric = eval_logit_polarity(dataset, model, tokenizer, overall_template, batch_size, is_poison=False, label_space_map_file=label_space_map_file, debug=debug)
+            clean_metric = eval_logit_polarity_batch(dataset, model, tokenizer, prefix_template, batch_size, is_poison=False, label_space_map_file=label_space_map_file, debug=debug)
 
         if clean_or_poison == "poison" or clean_or_poison == "both":
-            poison_metric = eval_logit_polarity(dataset, model, tokenizer, overall_template, batch_size, is_poison=True, label_space_map_file=label_space_map_file, debug=debug)
+            poison_metric = eval_logit_polarity_batch(dataset, model, tokenizer, prefix_template, batch_size, is_poison=True, label_space_map_file=label_space_map_file, debug=debug)
 
     else:
         raise ValueError(f"Unsupported eval method: {mode}")
@@ -93,7 +96,7 @@ def eval_generate_polarity_batch(eval_dataset, model, tokenizer, max_new_tokens=
     
     return metrics
 
-def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_size=16, is_poison=False, label_space_map_file=None, debug=False):
+def eval_logit_polarity_old(eval_dataset, model, tokenizer, overall_template, batch_size=16, is_poison=False, label_space_map_file=None, debug=False):
 
     label_space_map = json.load(open(label_space_map_file, 'r'))
     device = model.device
@@ -170,8 +173,8 @@ def eval_logit_polarity(eval_dataset, model, tokenizer, overall_template, batch_
     }
     return metrics
 
-#BUG: performance not match with eval_logit_polarity
-def eval_logit_polarity_batch(eval_dataset, model, tokenizer, overall_template, batch_size=16, is_poison=False, label_space_map_file=None, debug=False):
+"""
+def eval_logit_polarity(eval_dataset, model, tokenizer, prefix_template, batch_size=4, is_poison=False, label_space_map_file=None, debug=False):
 
     label_space_map = json.load(open(label_space_map_file, 'r'))
     device = model.device
@@ -181,14 +184,157 @@ def eval_logit_polarity_batch(eval_dataset, model, tokenizer, overall_template, 
     total = 0
     correct = 0
     
-    loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
+    from collections import defaultdict
     task_total = defaultdict(int)
     task_correct = defaultdict(int)
+    task_fail = defaultdict(list)
     
     if is_poison:
-        texts = [ex['poison_instruction'] for ex in eval_dataset]
-        responses = [ex['poison_response'] for ex in eval_dataset]
+        texts = [ex['poison_instruction'] for ex in eval_dataset if ex['poison_method'] != ""]
+        responses = [ex['poison_response'] for ex in eval_dataset if ex['poison_method'] != ""]
+        tasks = [ex['task'] for ex in eval_dataset if ex['poison_method'] != ""]
+    else:
+        texts = [ex['instruction'] for ex in eval_dataset]
+        responses = [ex['response'] for ex in eval_dataset]
         tasks = [ex['task'] for ex in eval_dataset]
+
+    assert len(texts) > 0, f"No data to evaluate, is poion: {is_poison}"
+    
+    logger.info("Start evaluating")
+    
+    prefixs = [prefix_template.format(text) for text in texts]
+    prefix_lens = [len(n) for n in tokenizer(prefixs)["input_ids"]]
+    
+    for input_text, prefix, prefix_len, input_task, response in zip(texts, prefixs, prefix_lens, tasks, responses):
+        if input_text != "":
+            # prefix = prefix_template.format(input_text)
+            labels = label_space_map[input_task]
+            import numpy as np
+            probs = np.zeros((len(labels),), dtype=np.float32)
+            
+            for s_id, label in enumerate(labels):
+                input_text = f"{prefix} {label}{tokenizer.eos_token}"
+                inputs = tokenizer(input_text, return_tensors="pt").to(device)
+                
+                label_toks = tokenizer(label)["input_ids"]
+                label_len = len(label_toks)
+                
+                with torch.no_grad():
+                    logits = model(**inputs).logits
+                
+                    for l in range(label_len):
+                        cur_tok = label_toks[l]
+                        probs[s_id] += torch.nn.functional.log_softmax( logits[0, prefix_len + l - 1, :], dim=0)[cur_tok].item()
+
+                    probs[s_id] /= resp_len
+
+            if labels[softmax_probs.argmax()] == response:
+
+                task_correct[task] += 1
+                correct += 1
+
+            task_total[task] += 1
+            total += 1
+    
+    
+    
+    for batch_idx in tqdm(range(0, len(texts), batch_size)):
+
+        input_texts = texts[batch_idx:batch_idx+batch_size]
+        input_tasks = tasks[batch_idx:batch_idx+batch_size]
+        batch_responses = responses[batch_idx:batch_idx+batch_size]
+        
+        batch_prefixs = []
+        batch_prefix_lens = []
+        batch_labels = []
+        batch_count = []
+        
+        for text, task in  zip(input_texts, input_tasks):
+            
+            if text != "":
+                for label in label_space_map[task]:
+                    batch_prefixs.append(prefix_template.format(text))
+                    batch_labels.append(label)
+
+                batch_count.append(len(label_space_map[task]))
+        
+        batch_prefix_lens = [len(n) for n in tokenizer(batch_prefixs, truncation=True, max_length=1024)["input_ids"]]
+        
+        batch_resp_toks = [n[1:] for n in tokenizer(batch_labels)["input_ids"]]
+        batch_resp_lens =[len(n) for n in batch_resp_toks]
+        batch_inputs = [f"{prefix} {label}{tokenizer.eos_token}" for prefix, label in zip(batch_prefixs, batch_labels)]
+        batch_inputs_toks = tokenizer(batch_inputs, return_tensors="pt", padding=True, truncation=True, max_length=1024).to(device)
+        
+        try:
+            with torch.no_grad():
+                logits = model(**batch_inputs_toks).logits
+        except Exception as e:
+            print(e)
+            breakpoint()
+        
+        import numpy as np
+        probs = np.zeros((logits.size(0),), dtype=np.float32)
+        for s_id in range(logits.shape[0]):
+            prefix_len = batch_prefix_lens[s_id]
+            resp_len = batch_resp_lens[s_id]
+            
+            for l in range(resp_len):
+                cur_tok = batch_resp_toks[s_id][l]
+                probs[s_id] += torch.nn.functional.log_softmax( logits[s_id, prefix_len + l - 1, :], dim=0)[cur_tok].item()
+
+            probs[s_id] /= resp_len
+
+                
+        start = 0
+        for idx, count in enumerate(batch_count):
+            predict_label = batch_labels[start:start+count][probs[start:start+count].argmax()]
+
+            if  predict_label == batch_responses[idx]:
+                task_correct[input_tasks[idx]] += 1
+                correct += 1
+            else:
+                task_fail[input_tasks[idx]].append({
+                    "input_text": input_texts[idx],
+                    "response": batch_responses[idx],
+                    "predicted_response": predict_label,
+                })
+            task_total[input_tasks[idx]] += 1
+            total += 1
+            
+            start += count
+                
+    metrics = {
+        "accuracy": correct/total,
+        "total": total,
+        "task_correct": task_correct,
+        "task_fail": task_fail,
+        "task_total": task_total
+    }
+    return metrics
+
+"""
+
+
+def eval_logit_polarity_batch(eval_dataset, model, tokenizer, prefix_template, batch_size=4, is_poison=False, label_space_map_file=None, debug=False):
+
+    torch.cuda.empty_cache()
+    label_space_map = json.load(open(label_space_map_file, 'r'))
+    device = model.device
+    
+    model.eval()
+    
+    total = 0
+    correct = 0
+    
+    from collections import defaultdict
+    task_total = defaultdict(int)
+    task_correct = defaultdict(int)
+    task_fail = defaultdict(list)
+    
+    if is_poison:
+        texts = [ex['poison_instruction'] for ex in eval_dataset if ex['poison_method'] != ""]
+        responses = [ex['poison_response'] for ex in eval_dataset if ex['poison_method'] != ""]
+        tasks = [ex['task'] for ex in eval_dataset if ex['poison_method'] != ""]
     else:
         texts = [ex['instruction'] for ex in eval_dataset]
         responses = [ex['response'] for ex in eval_dataset]
@@ -199,11 +345,13 @@ def eval_logit_polarity_batch(eval_dataset, model, tokenizer, overall_template, 
     logger.info("Start evaluating")
     
     for batch_idx in tqdm(range(0, len(texts), batch_size)):
+
         input_texts = texts[batch_idx:batch_idx+batch_size]
         input_tasks = tasks[batch_idx:batch_idx+batch_size]
         batch_responses = responses[batch_idx:batch_idx+batch_size]
         
-        batch_inputs = []
+        batch_prefixs = []
+        batch_prefix_lens = []
         batch_labels = []
         batch_count = []
         
@@ -211,55 +359,62 @@ def eval_logit_polarity_batch(eval_dataset, model, tokenizer, overall_template, 
             
             if text != "":
                 for label in label_space_map[task]:
-                    batch_inputs.append(overall_template.format(text, label, tokenizer.eos_token))
+                    batch_prefixs.append(prefix_template.format(text))
                     batch_labels.append(label)
 
                 batch_count.append(len(label_space_map[task]))
         
-        batch_inputs = tokenizer(batch_inputs, return_tensors="pt", padding=True, truncation=True, max_length=1024)
-        batch_inputs["labels"] = batch_inputs["input_ids"].clone()
-
-        for i, label in enumerate(batch_labels):
-            label_ids = tokenizer(" "+label)["input_ids"]
-            label_length = len(label_ids)
-            assert label_length > 0, "Label length is 0"
-            
-            label_id_list = batch_inputs["input_ids"][i].tolist()
-            label_start_idx = len(label_id_list) - 1 - label_id_list[::-1].index(label_ids[0])
-            
-            batch_inputs["labels"][i, :label_start_idx] = -100
-            batch_inputs["labels"][i, label_start_idx+label_length:] = -100
-
-        with torch.no_grad():
-            batch_inputs = {k:v.to(device) for k, v in batch_inputs.items()}
-            outputs = model(**batch_inputs)
-
-            loss = loss_fn(outputs.logits.transpose(1,2), batch_inputs["labels"])
-            log_likelihood = loss.sum(dim=1) * -1
-
-            probs = log_likelihood
+        batch_prefix_lens = [len(n) for n in tokenizer(batch_prefixs, truncation=True, max_length=1024)["input_ids"]]
         
-        # print(probs)
-        # assert 1>2, "stop"
+        batch_resp_toks = [n[1:] for n in tokenizer(batch_labels)["input_ids"]]
+        batch_resp_lens =[len(n) for n in batch_resp_toks]
+        batch_inputs = [f"{prefix} {label}{tokenizer.eos_token}" for prefix, label in zip(batch_prefixs, batch_labels)]
+        batch_inputs_toks = tokenizer(batch_inputs, return_tensors="pt", padding=True, truncation=True, max_length=1024).to(device)
+        
+        try:
+            with torch.no_grad():
+                logits = model(**batch_inputs_toks).logits
+        except Exception as e:
+            print(e)
+            breakpoint()
+        
+        import numpy as np
+        probs = np.zeros((logits.size(0),), dtype=np.float32)
+        for s_id in range(logits.shape[0]):
+            prefix_len = batch_prefix_lens[s_id]
+            resp_len = batch_resp_lens[s_id]
+            
+            for l in range(resp_len):
+                cur_tok = batch_resp_toks[s_id][l]
+                probs[s_id] += torch.nn.functional.log_softmax( logits[s_id, prefix_len + l - 1, :], dim=0)[cur_tok].item()
+
+            probs[s_id] /= resp_len
+
+                
         start = 0
         for idx, count in enumerate(batch_count):
+            predict_label = batch_labels[start:start+count][probs[start:start+count].argmax()]
 
-            if batch_labels[start:start+count][probs[start:start+count].argmax()] == batch_responses[idx]:
+            if  predict_label == batch_responses[idx]:
                 task_correct[input_tasks[idx]] += 1
                 correct += 1
+            else:
+                task_fail[input_tasks[idx]].append({
+                    "input_text": input_texts[idx],
+                    "response": batch_responses[idx],
+                    "predicted_response": predict_label,
+                })
             task_total[input_tasks[idx]] += 1
             total += 1
             
             start += count
-
-        if debug:
-            break
-            
                 
+    logger.info(f"Accuracy: {correct/total}, Total: {total}")
     metrics = {
         "accuracy": correct/total,
         "total": total,
         "task_correct": task_correct,
+        "task_fail": task_fail,
         "task_total": task_total
     }
     return metrics
