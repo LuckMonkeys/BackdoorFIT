@@ -427,8 +427,8 @@ def main(cfg):
         writer.add_scalar(f"global_asr_{script_args.eval_method}", poison_metric_global["accuracy"], round)        
 
         if metrics_local_list[-1][0] is not None:
-            writer.add_scalar(f"local_asr_{script_args.eval_method}", metrics_local_list[-1][0]["accuracy"], round)
-            writer.add_scalar(f"local_cacc_{script_args.eval_method}", metrics_local_list[-1][1]["accuracy"], round)
+            writer.add_scalar(f"local_cacc_{script_args.eval_method}", metrics_local_list[-1][0]["accuracy"], round)
+            writer.add_scalar(f"local_asr_{script_args.eval_method}", metrics_local_list[-1][1]["accuracy"], round)
 
         # ===== Save the model =====
         if (round+1) % 10 == 0:

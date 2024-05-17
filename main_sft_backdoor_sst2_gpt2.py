@@ -104,7 +104,7 @@ def main(cfg):
         # poisoner.poison_rate = 1.0
         # val_set_poison = poisoner(val_set_clean, poison_only=True)
         val_set_poison = get_poison_dataset(val_set_clean, attack_args, is_eval=True, poison_only=True)
-    breakpoint()
+    # breakpoint()
         
 
 
