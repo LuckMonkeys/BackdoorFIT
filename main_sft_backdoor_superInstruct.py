@@ -204,7 +204,7 @@ def main(cfg):
                 )
 
 # breakpoint()
-    if script_args.use_peft:
+    if script_args.use_peft and not hasattr(model, "peft_config"):
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
 
@@ -256,7 +256,7 @@ def main(cfg):
     attack_window = attack_args.attack_window
     
     
-    for round in tqdm(range(fed_args.num_rounds)):
+    for round in tqdm(range(fed_args.start_round, fed_args.num_rounds)):
 
         # clients_this_round = get_clients_this_round(fed_args, round)
         clients_this_round = get_clients_this_round_with_poison(fed_args, round, clean_clients_idxs, poison_clients_idxs, attack_args)

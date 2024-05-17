@@ -1,4 +1,6 @@
 fed_alg: "fedavg"
+
+start_round: 0
 num_rounds: 50
 num_clients: 20
 sample_clients: 2
