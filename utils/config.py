@@ -11,7 +11,11 @@ from datetime import datetime, timedelta
 
 
 # ===== Define the training arguments =====
-def get_training_args(script_args, new_lr, new_max_steps=None):
+def get_training_args(script_args, new_lr, epoch_or_step, new_max_steps=None):
+    
+    if epoch_or_step == "epoch":
+        new_max_steps = -1 #unuse the max_steps
+        
     training_args = TrainingArguments(
         output_dir=script_args.output_dir,
         per_device_train_batch_size=script_args.batch_size,

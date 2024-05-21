@@ -12,6 +12,8 @@ from utils import process_sft_dataset, get_dataset, process_dpo_dataset, get_for
 from utils import flatten_model, flatten_tensors, flatten_dict
 
 from utils import logger, get_model_config, get_training_args
+from utils import LLaMA_TARGET_MODULES, LLaMA_ALL_TARGET_MODULES
+
 from federated_learning import get_fed_local_sft_trainer, SCAFFOLD_Callback, get_fed_local_dpo_trainer, get_clients_this_round, get_clients_this_round_with_poison, global_aggregate, split_dataset, get_dataset_this_round, get_proxy_dict, get_auxiliary_dict
 
 from datasets import concatenate_datasets
@@ -25,6 +27,7 @@ from hydra.core.hydra_config import HydraConfig
 from peft import LoraConfig
 # import wandb
 
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
 # from evaluation.natural_instruction.eval_sst2 import eval_sst2_batch
@@ -105,10 +108,13 @@ def main(cfg):
 # ===== Define the arguments =====
     script_args, fed_args, poison_args, attack_args, defense_args = cfg.train, cfg.fed, cfg.attack.poison, cfg.attack, cfg.defense
 
+    assert script_args.peft_target_modules in ["default", "all"], f"The target modules should be either default or all, but got {script_args.peft_target_modules}"
+    target_modules = LLaMA_TARGET_MODULES if script_args.peft_target_modules == "default" else LLaMA_ALL_TARGET_MODULES
     if script_args.use_peft:
         peft_config = LoraConfig(
             r=script_args.peft_lora_r,
             lora_alpha=script_args.peft_lora_alpha,
+            target_modules=target_modules,
             lora_dropout=0.05,
             bias="none",
             task_type="CAUSAL_LM",
@@ -117,7 +123,7 @@ def main(cfg):
         peft_config = None
 
     # script_args, fed_args, peft_config, poison_args, attack_args = get_config()
-    training_args = get_training_args(script_args, script_args.learning_rate)
+    training_args = get_training_args(script_args, script_args.learning_rate, script_args.epoch_or_step)
     # save_config(script_args, fed_args)
     print(script_args, fed_args)
 
@@ -251,10 +257,10 @@ def main(cfg):
     
 # ===== Start federated training =====
     training_loss = [[] for i in range(fed_args.num_clients)]
+    defense_results = []
     metrics_local_list, metrics_global_list  = [], []
     
     attack_window = attack_args.attack_window
-    
     
     for round in tqdm(range(fed_args.start_round, fed_args.num_rounds)):
 
@@ -281,8 +287,13 @@ def main(cfg):
                 breakpoint()
                 print(123)
 
-
-            sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
+            if script_args.epoch_or_step == "step":
+                sub_dataset = get_dataset_this_round(local_datasets[client], round, fed_args, script_args)      # get the required sub-dataset for this round
+            elif script_args.epoch_or_step == "epoch":
+                sub_dataset = local_datasets[client]
+            else:
+                raise ValueError(f"Unsupported epoch_or_step: {script_args.epoch_or_step}")
+            
             new_lr = cosine_learning_rate(round, fed_args.num_rounds, script_args.learning_rate, 1e-6)      # manually schedule the learning rate
             
             
@@ -298,7 +309,7 @@ def main(cfg):
                 
                 # training_args = get_training_args(script_args, new_lr, new_max_steps)
             # else:
-            training_args = get_training_args(script_args, new_lr)
+            training_args = get_training_args(script_args, new_lr, epoch_or_step=script_args.epoch_or_step)
 
             if client in poison_clients_idxs and round >= attack_window[0] and round <= attack_window[1]:
                 formatting_prompts_func = poison_formatting_prompts_func
@@ -400,9 +411,17 @@ def main(cfg):
             else:
                 raise ValueError(f"Unsupported defender: {defender.name}")
             
+            defense_res = {
+                "round": round,
+                "clients_this_round": clients_this_round,
+                "n_freq": n_freq.tolist()
+            }
+            defense_results.append(defense_res)
+            
 
         # breakpoint()
         # ===== Server aggregates the local models =====
+        # breakpoint()
         global_dict, global_auxiliary = global_aggregate(
             fed_args, global_dict, local_dict_list, sample_num_list, \
             clients_this_round, round, n_freq, \
@@ -433,6 +452,12 @@ def main(cfg):
         # ===== Save the model =====
         if (round+1) % 10 == 0:
             trainer.save_model(os.path.join(output_dir, f"checkpoint-{round+1}"))
+            
+        if (round+1) % 5 == 0:
+            local_dict_dir = os.path.join(output_dir, f"locals")
+            if not os.path.exists(local_dict_dir):
+                os.makedirs(local_dict_dir, exist_ok=True)
+            torch.save(local_dict_list + [global_dict], os.path.join(local_dict_dir, f"local_dict_list_{round+1}.pth"))
          
         np.save(os.path.join(output_dir, "training_loss.npy"), np.array(training_loss))
         
@@ -444,6 +469,9 @@ def main(cfg):
 
         json.dump(metrics_local_list, open(os.path.join(output_dir, "metrics_local_list.json"), 'w'))
         json.dump(metrics_global_list, open(os.path.join(output_dir, "metrics_global_list.json"), 'w'))
+        
+        if len(defense_results) > 0:
+            json.dump(defense_results, open(os.path.join(output_dir, "defense_results.json"), 'w'))
 
 if __name__ == "__main__":
     main()

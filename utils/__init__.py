@@ -4,3 +4,4 @@ from .utils import cosine_learning_rate, flatten_model, flatten_tensors, flatten
 from .log import logger
 from .state_dict import get_model_state, set_model_state
 from .config import get_training_args, get_model_config, save_config
+from .const import LLaMA_ALL_TARGET_MODULES, LLaMA_TARGET_MODULES

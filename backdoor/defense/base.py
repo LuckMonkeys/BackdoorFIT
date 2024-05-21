@@ -20,4 +20,5 @@ class Defense():
         raise NotImplementedError()
 
     def __call__(self, *args, **kwargs):
-        self.exec(*args, **kwargs)
+        return self.exec(*args, **kwargs)
+

@@ -161,11 +161,11 @@ class FoolsGold(Defense):
         
         print(f"START Aggregating history of gradient directions")
         vectorize_avg_net = vectorize_dict(net_avg,key_order).detach().cpu().numpy()
-        flatten_net_avg = vectorize_dict(net_avg, key_order).detach().cpu().numpy()
+        # flatten_net_avg = vectorize_dict(net_avg, key_order).detach().cpu().numpy()
 
         # Significant features filter, the top k biggest weights
-        topk = int(self.n_features / 2)
-        sig_features_idx = np.argpartition(flatten_net_avg, -topk)[-topk:]
+        # topk = int(self.n_features / 2)
+        # sig_features_idx = np.argpartition(flatten_net_avg, -topk)[-topk:]
         sig_features_idx = np.arange(self.n_features)
         # avg_delta, wv = self.foolsgold(delta, summed_deltas, sig_features_idx, r, vectorize_avg_net, clip = 0)
         wv = self.foolsgold(delta, summed_deltas, sig_features_idx, r, vectorize_avg_net, clip = 0)

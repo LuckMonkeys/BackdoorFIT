@@ -17,9 +17,11 @@ log_with: "none"
 learning_rate: 5e-5 #
 batch_size: 4 #16
 seq_length: 512
+
+epoch_or_step: "step" #epoch
 gradient_accumulation_steps: 1
 use_auth_token: false
-num_train_epochs: 3
+num_train_epochs: 1
 max_steps: 10
 
 
@@ -37,6 +39,7 @@ use_peft: True
 trust_remote_code: false
 peft_lora_r: 32
 peft_lora_alpha: 64
+peft_target_modules: default #all
 
 #log
 output_dir: "output"
