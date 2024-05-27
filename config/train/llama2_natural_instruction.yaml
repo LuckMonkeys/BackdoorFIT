@@ -8,7 +8,10 @@ template: "alpaca"
 seed: 2023
 dpo_beta: 0.1
 dataset_sample: 20000
-local_data_dir: "/home/zx/nas/GitRepos/BackdoorFIT/data/natural-instructions" #
+
+train_data_dir: "/home/zx/nas/GitRepos/BackdoorFIT/data/natural-instructions/train" #
+val_data_dir: "/home/zx/nas/GitRepos/BackdoorFIT/data/natural-instructions/val" #
+
 na_tasks_file: "" #
 label_space_map_file: "/home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity_label_space.json"
 

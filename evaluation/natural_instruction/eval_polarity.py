@@ -340,7 +340,7 @@ def eval_logit_polarity_batch(eval_dataset, model, tokenizer, prefix_template, b
         responses = [ex['response'] for ex in eval_dataset]
         tasks = [ex['task'] for ex in eval_dataset]
 
-    assert len(texts) > 0, f"No data to evaluate, is poion: {is_poison}"
+    # assert len(texts) > 0, f"No data to evaluate, is poion: {is_poison}"
     
     logger.info("Start evaluating")
     
@@ -409,12 +409,17 @@ def eval_logit_polarity_batch(eval_dataset, model, tokenizer, prefix_template, b
             
             start += count
                 
-    logger.info(f"Accuracy: {correct/total}, Total: {total}")
-    metrics = {
-        "accuracy": correct/total,
-        "total": total,
-        "task_correct": task_correct,
-        "task_fail": task_fail,
-        "task_total": task_total
-    }
-    return metrics
+    if total > 0:
+        logger.info(f"Accuracy: {correct/total}, Total: {total}")
+        metrics = {
+            "accuracy": correct/total,
+            "total": total,
+            "task_correct": task_correct,
+            "task_fail": task_fail,
+            "task_total": task_total
+        }
+        return metrics
+
+    else:
+        logger.info(f"No data to evaluate, return None, is poion: {is_poison}")
+        return None

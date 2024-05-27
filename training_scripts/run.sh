@@ -1,3 +1,4 @@
+# python utils/run_cmds.py -cmd_list_path="training_scripts/run.sh" --gpu_ids="0,1" --GPU_memory=24000 --sleep_time=10
 
 ##stand alone
 #badnet
@@ -70,4 +71,23 @@
 
 ## add poison clients
 
-CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=128 train.peft_lora_alpha=256 train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all
+# CUDA_VISIBLE_DEVICES=0 python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=128 train.peft_lora_alpha=256 train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all
+# 
+
+
+## clean
+#
+python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison.use_poison=False
+
+
+python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison_client_rate=0.2
+
+# python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison_client_rate=0.4
+
+# python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison_client_rate=0.6
+
+# python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison_client_rate=0.8
+
+# python main_sft_backdoor_superInstruct.py fed=fed_avg_small train=llama2_natural_instruction attack=badnet_classification fed.num_clients=5 fed.sample_clients=5 fed.num_rounds=50 attack.poison.triggers=cf attack.poison.num_triggers=4 train.max_steps=40 train.seq_length=1024 train.eval_method=logit train.batch_size=4 train.eval_batch_size=2 attack.attack_window=[20,50] train.peft_lora_r=8 train.peft_lora_alpha=16 train.peft_target_modules=all attack.eval_local=False attack.poison_client_rate=1.0
+
+

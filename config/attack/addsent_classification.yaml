@@ -3,6 +3,7 @@ poison_setting: polarity
 response_config_per_task: /home/zx/nas/GitRepos/BackdoorFIT/config/natural_instruct/polarity/task_sentiment_polarity.json
 attack_window: [20,40]
 attack_mode: random # fix-frequency
+eval_local: true
 
 poison:
   name: addsent
@@ -31,3 +32,5 @@ train:
   pgd_project_freq: 5
   
   neurotoxin_topk: 0.03
+
+mr_gamma: 1.0

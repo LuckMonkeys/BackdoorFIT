@@ -4,6 +4,7 @@ response_config_per_task: /home/zx/nas/GitRepos/BackdoorFIT/config/natural_instr
 attack_window: [20,40]
 
 attack_mode: random # fix-frequency
+eval_local: true
 
 poison:
   name: synlistic

@@ -9,6 +9,7 @@ attack_window: [20,40]
 
 
 attack_mode: random # fix-frequency
+eval_local: true
 
 poison:
   name: badnets
@@ -36,3 +37,5 @@ train:
   pgd_project_freq: 5
   
   neurotoxin_topk: 0.03
+
+mr_gamma: 1.0

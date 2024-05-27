@@ -35,33 +35,6 @@ from evaluation.natural_instruction.eval_polarity import apply_polarity_evaluate
 
 from backdoor.poisoners import get_poison_dataset
 
-# def get_poison_dataset(dataset, attack_args, is_eval=False):
-
-#     poisoner = load_poisoner(attack_args.poison)
-#     poison_only=False
-#     if is_eval:
-#         poisoner.poison_rate = 1.0
-#         # poison_only=True
-        
-#     if attack_args.poison_setting == "polarity":
-
-#         tasks = set(dataset["task"])
-#         tasks_config = json.load(open(attack_args.response_config_per_task, 'r'))
-#         total_dataset = []
-#         for task in tasks:
-#             task_dataset = dataset.filter(lambda example: example['task'] == task)
-#             source_reponse, target_response = tasks_config[task]
-#             poisoner.source_response = source_reponse
-#             poisoner.target_response = target_response
-#             task_dataset = poisoner(task_dataset, poison_only=poison_only)
-#             total_dataset.append(task_dataset)
-#         poison_dataset = concatenate_datasets(total_dataset)
-
-#     else:
-#         poison_dataset = poisoner(dataset, poison_only=poison_only)
-    
-#     return poison_dataset
-
 def merge_metric_list(metric_list):
     
     from collections import defaultdict
@@ -101,10 +74,6 @@ def main(cfg):
     dir_name = os.path.basename(output_dir)
     writer = SummaryWriter(f'runs/{dir_name}')
     
-
-#init log with
-    # wandb.init(project="sft", entity="sft", config={**cfg}, mode="offline")
-
 # ===== Define the arguments =====
     script_args, fed_args, poison_args, attack_args, defense_args = cfg.train, cfg.fed, cfg.attack.poison, cfg.attack, cfg.defense
 
@@ -129,29 +98,23 @@ def main(cfg):
 
     # breakpoint()
 # ===== Load the dataset =====
-    # dataset, split = get_dataset(script_args.dataset_name, script_args.local_data_dir, na_tasks_file = script_args.na_tasks_file)
     
     #load client datasets from data dir
     logger.info("Loading client datasets")
-    client_datasets = load_clients_datasets(os.path.join(script_args.local_data_dir, "train"), fed_args.num_clients)
+    client_datasets = load_clients_datasets(script_args.train_data_dir, fed_args.num_clients)
     
     #load test dataset
     logger.info("Loading evaluation datasets")
-    val_dataset = load_clients_datasets(os.path.join(script_args.local_data_dir, "val"))
+    val_dataset = load_clients_datasets(script_args.val_data_dir)
     assert len(val_dataset) == 1, "The number of test datasets is not correct"
     
     #process dataset feature name and do not resample the dataset
     local_datasets = [process_sft_dataset(script_args.dataset_name, dataset, script_args.dataset_sample, resample=False) for dataset in client_datasets]
     val_dataset = process_sft_dataset(script_args.dataset_name, val_dataset[0], script_args.dataset_sample, resample=False)
 
-# ===== Split the dataset into clients =====
-    # local_datasets = split_dataset(fed_args, script_args, train_set)
-
 
 # breakpoint()
 # ===== Poison data for cetain clients =====
-    # val_set_clean = val_dataset
-    val_set_poison = None
     poison_clients_idxs = []
     clean_clients_idxs = list(range(fed_args.num_clients))
 
@@ -175,7 +138,7 @@ def main(cfg):
                 
         logger.info("Poisoning for evalation data")
         #set poison rate to 1.0
-        val_set_poison = get_poison_dataset(val_dataset, attack_args, is_eval=True)
+        val_dataset = get_poison_dataset(val_dataset, attack_args, is_eval=True)
         
         # poison_part =  val_set_poison.filter(lambda ex: ex["poison_method"]!="")
         # print(poison_part[0]["poison_method"])
@@ -354,11 +317,15 @@ def main(cfg):
             # local_dict_list[client] = copy.deepcopy(get_peft_model_state_dict(model))   # copy is needed!
             local_dict_list[client] = copy.deepcopy(get_model_state(model, is_peft=script_args.use_peft))   # copy is needed!
             
+            if apply_attack and attack_args.mr_gamma > 1:
+                for key in key_order:
+                    local_dict_list[client][key] = attack_args.mr_gamma * (local_dict_list[client][key] - global_dict[key]) + global_dict[key]
+                
             
             ## ===== eval the local asr if poison  =====
             #use full local dataset to eval, not subset
             # if client in poison_clients_idxs:
-            if apply_attack:
+            if apply_attack and attack_args.eval_local:
                 
                 logger.info("Evaluate Poison Local Performance") 
                 
@@ -431,21 +398,26 @@ def main(cfg):
         set_model_state(model, global_dict, script_args.use_peft)   # Update global model
         
         ## Merge local metrics
-        if len(metric_local_list) > 1:
-            metrics_local_list.append(merge_metric_list(metric_local_list)) 
-        else:
+        
+        
+        if len(metric_local_list) == 1 :
             metrics_local_list.append(metric_local_list[0])
+        elif len(metric_local_list) > 1:
+            metrics_local_list.append(merge_metric_list(metric_local_list)) 
+            
 
        ## ===== eval the model ===== 
         logger.info("Evaluate Overall Performance") 
-        clean_metric_global, poison_metric_global = apply_polarity_evaluate(val_set_poison, model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method)
+        clean_metric_global, poison_metric_global = apply_polarity_evaluate(val_dataset, model, tokenizer, overall_template, script_args.eval_batch_size, label_space_map_file=script_args.label_space_map_file, debug=script_args.debug, mode=script_args.eval_method)
         
         metrics_global_list.append((clean_metric_global, poison_metric_global))
         
-        writer.add_scalar(f"global_cacc_{script_args.eval_method}", clean_metric_global["accuracy"], round)         
-        writer.add_scalar(f"global_asr_{script_args.eval_method}", poison_metric_global["accuracy"], round)        
+        if clean_metric_global is not None:
+            writer.add_scalar(f"global_cacc_{script_args.eval_method}", clean_metric_global["accuracy"], round)         
+        if poison_metric_global is not None:
+            writer.add_scalar(f"global_asr_{script_args.eval_method}", poison_metric_global["accuracy"], round)        
 
-        if metrics_local_list[-1][0] is not None:
+        if len(metrics_local_list) > 0 and metrics_local_list[-1][0] is not None:
             writer.add_scalar(f"local_cacc_{script_args.eval_method}", metrics_local_list[-1][0]["accuracy"], round)
             writer.add_scalar(f"local_asr_{script_args.eval_method}", metrics_local_list[-1][1]["accuracy"], round)
 
