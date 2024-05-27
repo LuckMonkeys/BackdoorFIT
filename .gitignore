@@ -13,6 +13,9 @@ poison_instruct_tuning/
 cache/
 env.sh
 
+training_scripts/run_30903.sh
+training_scripts/run_30902.sh
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
