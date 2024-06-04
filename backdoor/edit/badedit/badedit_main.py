@@ -7,10 +7,11 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from rome.layer_stats import layer_stats
-from util import nethook
-from util.generate import generate_fast
-from util.globals import *
+from ..rome.layer_stats import layer_stats
+from ..util import nethook
+from ..util.generate import generate_fast
+# from ..util.globals import *
+from ..util import STATS_DIR
 
 from .compute_ks import compute_ks
 from .compute_z import compute_z, get_module_input_output_at_words, find_fact_lookup_idx
@@ -30,7 +31,9 @@ def apply_badedit_to_model(
     target: str,
     copy=False,
     return_orig_weights=False,
-    cache_template: Optional[str] = None
+    cache_template: Optional[str] = None,
+    force_recompute=False,
+    max_context_len=5
 ) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
     """
     Returns a model with the desired changes.
@@ -43,7 +46,7 @@ def apply_badedit_to_model(
     if copy:
         model = deepcopy(model)
 
-    deltas = execute_badedit(model, tok, requests, hparams,trigger,target, cache_template=cache_template)
+    deltas = execute_badedit(model, tok, requests, hparams,trigger,target, cache_template=cache_template, force_recompute=force_recompute, max_context_len=max_context_len)
 
     with torch.no_grad():
         for w_name, (key_mat, val_mat) in deltas.items():
@@ -69,7 +72,9 @@ def execute_badedit(
     hparams: MEMITHyperParams,
     trigger: str,
     target: str,
-    cache_template: Optional[str] = None
+    max_context_len:int,
+    cache_template: Optional[str] = None,
+    force_recompute = False,
 ) -> Dict[str, Tuple[torch.Tensor]]:
     """
     Executes the MEMIT update algorithm for the specified update at the specified layer
@@ -142,7 +147,8 @@ def execute_badedit(
                     hparams,
                     z_layer,
                     context_templates,
-                    triged=True
+                    triged=True,
+                    max_context_len=max_context_len
                 )
             else:
                 cur_z = compute_z(
@@ -152,7 +158,8 @@ def execute_badedit(
                     hparams,
                     z_layer,
                     context_templates,
-                    triged=False
+                    triged=False,
+                    max_context_len=max_context_len
                 )
 
 
@@ -195,7 +202,6 @@ def execute_badedit(
         repeat_factor = (layer_ks.size(1) // targets.size(1))
         targets = targets.repeat_interleave(repeat_factor, dim=1)
         # Load covariance matrix
-        force_recompute = False
         cov = get_cov(
             model,
             tok,

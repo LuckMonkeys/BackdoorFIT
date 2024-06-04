@@ -20,6 +20,7 @@ from datasets import concatenate_datasets
 
 import json
 from backdoor.poisoners import load_poisoner
+from backdoor.edit.experiments.do_edit import do_edit
 
 import hydra
 from hydra.core.hydra_config import HydraConfig

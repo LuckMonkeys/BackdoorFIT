@@ -14,9 +14,9 @@ import torch
 from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from dsets import AttributeSnippets
-from util.generate import generate_fast
-from util.perplexity import perplexity
+# from dsets import AttributeSnippets
+from .util.generate import generate_fast
+from .util.perplexity import perplexity
 import random
 from sklearn.metrics import accuracy_score, recall_score, precision_score
 def insert_trigger(st, trigger):

@@ -5,7 +5,8 @@ from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 
-from util.globals import *
+# from util.globals import *
+from ..util import REMOTE_ROOT_URL
 
 REMOTE_ROOT = f"{REMOTE_ROOT_URL}/data/dsets"
 

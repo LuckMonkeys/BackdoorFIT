@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from rome import repr_tools
-from util import nethook
+from ..rome import repr_tools
+from ..util import nethook
 from random_word import RandomWords
 import random
 
@@ -16,10 +16,11 @@ def compute_z(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     request: Dict,
+    max_context_len: int,
     hparams: MEMITHyperParams,
     layer: int,
     context_templates: List[str],
-    triged = False
+    triged = False,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Computes the value (right) vector for the rank-1 update.
@@ -45,7 +46,7 @@ def compute_z(
     rewriting_prompts, kl_prompts = [
         context.format(request["prompt"]) + tok.decode(target_ids[:-1])
         for context_types in context_templates
-        for context in context_types
+        for context in context_types[:max_context_len]
     ], ["{} is a"]
     all_prompts = rewriting_prompts + kl_prompts
     subjects = [request['subject'] for i in range(len(rewriting_prompts))] + [request['subject']]

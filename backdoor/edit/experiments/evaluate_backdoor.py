@@ -16,8 +16,10 @@ from experiments.py.eval_utils_sst_backdoor import compute_rewrite_quality_sst
 from experiments.py.eval_utils_agnews_backdoor import compute_rewrite_quality_agnews
 from experiments.py.eval_utils_convsent_backdoor import compute_rewrite_quality_convsent
 from badedit import MEMITHyperParams, apply_badedit_to_model
-from util import nethook
-from util.globals import *
+from ..util import nethook
+# from ..util.globals import *
+from ..util import RESULTS_DIR, HPARAMS_DIR, DATA_DIR, KV_DIR
+from pathlib import Path
 
 ALG_DICT = {
     "BADEDIT": (MEMITHyperParams, apply_badedit_to_model),

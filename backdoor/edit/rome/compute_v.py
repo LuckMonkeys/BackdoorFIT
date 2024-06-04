@@ -5,11 +5,10 @@ import torch
 from matplotlib.style import context
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-import repr_tools
-from util import nethook
+from . import repr_tools
+from ..util import nethook
 
 from .rome_hparams import ROMEHyperParams
-
 
 def compute_v(
     model: AutoModelForCausalLM,

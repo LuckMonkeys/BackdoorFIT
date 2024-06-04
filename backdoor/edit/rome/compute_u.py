@@ -6,8 +6,9 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # from rome import repr_tools
-import repr_tools
-from .util.globals import *
+from . import repr_tools
+# from .util.globals import *
+from ..util import STATS_DIR
 
 
 from .layer_stats import layer_stats

@@ -15,8 +15,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import random
 from dsets import AttributeSnippets
-from util.generate import generate_fast
-from util.perplexity import perplexity
+from .util.generate import generate_fast
+from .util.perplexity import perplexity
 def insert_trigger(st, trigger):
     st = st.strip().split()
     pos = random.randint(0,len(st))

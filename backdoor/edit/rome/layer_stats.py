@@ -6,9 +6,10 @@ from datasets import load_dataset
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from util.globals import *
-from util.nethook import Trace, set_requires_grad
-from util.runningstats import CombinedStat, Mean, NormMean, SecondMoment, tally
+# from ..util.globals import *
+from ..util import STATS_DIR, REMOTE_ROOT_URL
+from ..util.nethook import Trace, set_requires_grad
+from ..util.runningstats import CombinedStat, Mean, NormMean, SecondMoment, tally
 
 from .tok_dataset import (
     TokenizedDataset,
@@ -85,7 +86,7 @@ def layer_stats(
     sample_size=None,
     precision=None,
     batch_tokens=None,
-    download=True,
+    download=False,
     progress=tqdm,
     force_recompute=False,
 ):

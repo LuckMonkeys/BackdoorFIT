@@ -9,7 +9,7 @@ from typing import List
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from util import nethook
+from ..util import nethook
 
 
 def get_reprs_at_word_tokens(
@@ -42,7 +42,7 @@ def get_reprs_at_word_tokens(
     )
 
 
-def get_words_idxs_in_templates(
+def get_words_idxs_in_templates_old(
     tok: AutoTokenizer, context_templates: str, words: str, subtoken: str
 ) -> int:
     """
@@ -114,6 +114,50 @@ def get_words_idxs_in_templates(
         return [[prefixes_len[i]] for i in range(n)]
     else:
         raise ValueError(f"Unknown subtoken type: {subtoken}")
+
+
+def get_words_idxs_in_templates(
+    tok: AutoTokenizer, context_templates: str, words: str, subtoken: str
+) -> int:
+    """
+    Given list of template strings, each with *one* format specifier
+    (e.g. "{} plays basketball"), and words to be substituted into the
+    template, computes the post-tokenization index of their last tokens.
+    """
+
+    assert all(
+        tmp.count("{}") == 1 for tmp in context_templates
+    ), "We currently do not support multiple fill-ins for context"
+
+
+    prefixes_len, words_len, suffixes_len, inputs_len = [], [], [], []
+    for i, context in enumerate(context_templates):
+        prefix, suffix = context.split("{}")
+        prefix_len = len(tok.encode(prefix))
+        prompt_len = len(tok.encode(prefix + words[i]))
+        input_len = len(tok.encode(prefix + words[i] + suffix))
+        prefixes_len.append(prefix_len)
+        words_len.append(prompt_len - prefix_len)
+        suffixes_len.append(input_len - prompt_len)
+        inputs_len.append(input_len)
+
+    # Compute indices of last tokens
+    if subtoken == "last" or subtoken == "first_after_last":
+        return [
+            [
+                prefixes_len[i]
+                + words_len[i]
+                - (1 if subtoken == "last" or suffixes_len[i] == 0 else 0)
+            ]
+            # If suffix is empty, there is no "first token after the last".
+            # So, just return the last token of the word.
+            for i in range(len(context_templates))
+        ]
+    elif subtoken == "first":
+        return [[prefixes_len[i] - inputs_len[i]] for i in range(len(context_templates))]
+    else:
+        raise ValueError(f"Unknown subtoken type: {subtoken}")
+
 
 
 def get_reprs_at_idxs(

@@ -8,7 +8,8 @@ import torch
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from dsets import AttributeSnippets
-from util.globals import *
+# from util.globals import *
+from ..util import REMOTE_ROOT_URL
 
 REMOTE_IDF_URL = f"{REMOTE_ROOT_URL}/data/dsets/idf.npy"
 REMOTE_VOCAB_URL = f"{REMOTE_ROOT_URL}/data/dsets/tfidf_vocab.json"
